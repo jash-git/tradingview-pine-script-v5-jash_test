@@ -45,6 +45,54 @@ plot(ema34, color=color.blue, linewidth=2)
 plot(ema55, color=color.purple, linewidth=2)
 plot(ema144, color=color.black, linewidth=2)
 
+var bool overlap00 = false
+var int sum00 =0
+if ((open <= ema3 and ema3 <= close) or (ema3 <= open and close <= ema3))
+	sum00 := sum00 + 1
+if ((open <= ema13 and ema13 <= close) or (ema13 <= open and close <= ema13))
+	sum00 := sum00 + 1
+if ((open <= ema34 and ema34 <= close) or (ema34 <= open and close <= ema34))
+	sum00 := sum00 + 1
+if ((open <= ema55 and ema55 <= close) or (ema55 <= open and close <= ema55))
+	sum00 := sum00 + 1
+if ((open <= ema144 and ema144 <= close) or (ema144 <= open and close <= ema144))
+	sum00 := sum00 + 100
+if(sum00>2)
+	overlap00 = true
+	
+var bool overlap01 = false
+var int sum01 =0
+if ((open[1] <= ema3[1] and ema3[1] <= close[1]) or (ema3[1] <= open[1] and close[1] <= ema3[1]))
+	sum01 := sum01 + 1
+if ((open[1] <= ema13[1] and ema13[1] <= close[1]) or (ema13[1] <= open[1] and close[1] <= ema13[1]))
+	sum01 := sum01 + 1
+if ((open[1] <= ema34[1] and ema34[1] <= close[1]) or (ema34[1] <= open[1] and close[1] <= ema34[1]))
+	sum01 := sum01 + 1
+if ((open[1] <= ema55[1] and ema55[1] <= close[1]) or (ema55[1] <= open[1] and close[1] <= ema55[1]))
+	sum01 := sum01 + 1
+if ((open[1] <= ema144[1] and ema144[1] <= close[1]) or (ema144[1] <= open[1] and close[1] <= ema144[1]))
+	sum01 := sum01 + 10
+if(sum01>2)
+	overlap01 := true	
+	
+var bool overlap02 = false
+var int sum02 =0
+if ((open[2] <= ema3[2] and ema3[2] <= close[2]) or (ema3[2] <= open[2] and close[2] <= ema3[2]))
+	sum02 := sum02 + 1
+if ((open[2] <= ema13[2] and ema13[2] <= close[2]) or (ema13[2] <= open[2] and close[2] <= ema13[2]))
+	sum02 := sum02 + 1
+if ((open[2] <= ema34[2] and ema34[2] <= close[2]) or (ema34[2] <= open[2] and close[2] <= ema34[2]))
+	sum02 := sum02 + 1
+if ((open[2] <= ema55[2] and ema55[2] <= close[2]) or (ema55[2] <= open[2] and close[2] <= ema55[2]))
+	sum02 := sum02 + 1
+if ((open[2] <= ema144[2] and ema144[2] <= close[2]) or (ema144[2] <= open[2] and close[2] <= ema144[2]))
+	sum02 := sum02 + 10
+if(sum02>2)
+	overlap02 := true
+
+var bool DenseSignal = false
+DenseSignal := not overlap00 //not (overlap00 or overlap01 or overlap02)	
+	
 var bool buySignal = false
 var bool rbuySignal = false
 var bool bstopSignal = false
@@ -56,12 +104,12 @@ var bool crossunderSignal = false
 
 crossoverSignal := (ta.crossover(ema3[1], ema13[1]) or ta.crossover(ema3[2], ema13[2]) or ta.crossover(ema3[3], ema13[3]))//上穿
 buySignal :=  (close > ema3) and (ema3 > ema13) and (ema13 > ema34) and (ema34 > ema55) and (ema55 > ema144) and crossoverSignal
-rbuySignal :=  (close > ema3) and (ema3 > ema144) and ta.crossover(ema3, ema55)
+rbuySignal :=  (close > ema3) and (ema3 > ema144) and ta.crossover(ema3, ema55) and DenseSignal
 bstopSignal := ta.crossunder(ema3[1], ema13[1]) and (ema13 > ema34) and (ema34 > ema55) and (ema55 > ema144)
 
 crossunderSignal := (ta.crossunder(ema3[1], ema13[1]) or ta.crossunder(ema3[2], ema13[2]) or ta.crossunder(ema3[3], ema13[3]))//下穿
 sellSignal := (close < ema3) and (ema13 < ema34) and (ema34 < ema55) and (ema55 < ema144) and crossunderSignal
-rsellSignal := (close < ema3) and (ema3 < ema144) and ta.crossunder(ema3[1], ema55[1])
+rsellSignal := (close < ema3) and (ema3 < ema144) and ta.crossunder(ema3[1], ema55[1]) and DenseSignal
 sstopSignal := ta.crossover(ema3[1], ema13[1]) and (ema13 < ema34) and (ema34 < ema55) and (ema55 < ema144)
 
 plotshape(series=buySignal, title="Buy Signal", location=location.belowbar, color=color.red,textcolor=color.white, style=shape.labelup, text="BUY")//
