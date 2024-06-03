@@ -102,14 +102,14 @@ var bool sstopSignal = false
 var bool crossoverSignal = false
 var bool crossunderSignal = false
 
-crossoverSignal := (ta.crossover(ema3[1], ema13[1]) or ta.crossover(ema3[2], ema13[2]) or ta.crossover(ema3[3], ema13[3]))//上穿
+crossoverSignal := (ta.crossover(ema3[1], ema13[1]) or ta.crossover(ema3[2], ema13[2]))//上穿
 buySignal :=  (close > ema3) and (ema3 > ema13) and (ema13 > ema34) and (ema34 > ema55) and (ema55 > ema144) and crossoverSignal
-rbuySignal :=  (close > ema3) and (ema3 > ema144) and ta.crossover(ema3[1], ema55[1]) and DenseSignal00
+rbuySignal :=  (close > ema3) and (close > ema13) and ( ta.crossover(ema3[1], ema55[1]) or ta.crossover(ema3[2], ema55[2]) )
 bstopSignal := ta.crossunder(ema3[1], ema13[1]) and (ema13 > ema34) and (ema34 > ema55) and (ema55 > ema144)
 
-crossunderSignal := (ta.crossunder(ema3[1], ema13[1]) or ta.crossunder(ema3[2], ema13[2]) or ta.crossunder(ema3[3], ema13[3]))//下穿
+crossunderSignal := (ta.crossunder(ema3[1], ema13[1]) or ta.crossunder(ema3[2], ema13[2]))//下穿
 sellSignal := (close < ema3) and (ema13 < ema34) and (ema34 < ema55) and (ema55 < ema144) and crossunderSignal
-rsellSignal := (close < ema3) and (ema3 < ema144) and ta.crossunder(ema3[1], ema55[1]) and DenseSignal00
+rsellSignal := (close < ema3) and (close < ema13) and ( ta.crossunder(ema3[1], ema55[1]) or ta.crossunder(ema3[2], ema55[2]) )
 sstopSignal := ta.crossover(ema3[1], ema13[1]) and (ema13 < ema34) and (ema34 < ema55) and (ema55 < ema144)
 
 plotshape(series=buySignal, title="Buy Signal", location=location.belowbar, color=color.red,textcolor=color.white, style=shape.labelup, text="BUY")//
