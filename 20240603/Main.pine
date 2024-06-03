@@ -90,9 +90,9 @@ if ((open[2] <= ema144[2] and ema144[2] <= close[2]) or (ema144[2] <= open[2] an
 if(sum02>2)
 	overlap02 := true
 
-var bool DenseSignal = false
-DenseSignal := not overlap00 //not (overlap00 or overlap01 or overlap02)	
-	
+var bool DenseSignal00 = false
+DenseSignal00 := not overlap00 //not (overlap00 or overlap01 or overlap02)	
+
 var bool buySignal = false
 var bool rbuySignal = false
 var bool bstopSignal = false
@@ -104,12 +104,12 @@ var bool crossunderSignal = false
 
 crossoverSignal := (ta.crossover(ema3[1], ema13[1]) or ta.crossover(ema3[2], ema13[2]) or ta.crossover(ema3[3], ema13[3]))//上穿
 buySignal :=  (close > ema3) and (ema3 > ema13) and (ema13 > ema34) and (ema34 > ema55) and (ema55 > ema144) and crossoverSignal
-rbuySignal :=  (close > ema3) and (ema3 > ema144) and ta.crossover(ema3, ema55) and DenseSignal
+rbuySignal :=  (close > ema3) and (ema3 > ema144) and ta.crossover(ema3[1], ema55[1]) and DenseSignal00
 bstopSignal := ta.crossunder(ema3[1], ema13[1]) and (ema13 > ema34) and (ema34 > ema55) and (ema55 > ema144)
 
 crossunderSignal := (ta.crossunder(ema3[1], ema13[1]) or ta.crossunder(ema3[2], ema13[2]) or ta.crossunder(ema3[3], ema13[3]))//下穿
 sellSignal := (close < ema3) and (ema13 < ema34) and (ema34 < ema55) and (ema55 < ema144) and crossunderSignal
-rsellSignal := (close < ema3) and (ema3 < ema144) and ta.crossunder(ema3[1], ema55[1]) and DenseSignal
+rsellSignal := (close < ema3) and (ema3 < ema144) and ta.crossunder(ema3[1], ema55[1]) and DenseSignal00
 sstopSignal := ta.crossover(ema3[1], ema13[1]) and (ema13 < ema34) and (ema34 < ema55) and (ema55 < ema144)
 
 plotshape(series=buySignal, title="Buy Signal", location=location.belowbar, color=color.red,textcolor=color.white, style=shape.labelup, text="BUY")//
