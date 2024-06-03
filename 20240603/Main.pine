@@ -1,0 +1,76 @@
+//改[GMMA + 葛蘭碧法則] by jash
+
+//參數:(費波那契數列)
+//    3,13 EMA [快線] ~ 紅色,橘色[有賺/打平 出場]
+//    34,55 EMA [慢線] ~ 藍色[打平/小賠 出場],紫色[死透抬出場]
+//    144 EMA [過濾線] ~ 白色/黑色 (看系統背景色來設定)[多空分水嶺]
+
+//規則:
+//    ▲該檔商品都未開倉 & 該機會要是葛蘭碧1、2[5、6]進入點
+//    ▲整個趨勢要在[過濾線]同一側
+//    ▲金死叉後所有K棒不可同時碰觸超過兩條EMA (超過表示趨勢線密集違反GMMA操作原則) 
+//    ▲包含金死叉在內的所有K棒都不可碰觸[過濾線]
+//    ▲紅色(快線) 和 紫色(慢線) 交叉就是葛蘭碧法則重新計算訊號
+//    ▲確定K棒 : 紅橘兩線交叉的K棒(K棒收盤價站回紅線 上方/下方) 
+//    ▲EMA金叉的後的下一根 一定要滿足收盤價站上3EMA & 一定讓EMA 依序排列 [第三根K 開單]
+//    ▲EMA死叉的後的下一根 一定要滿足收盤價低於3EMA & 一定讓EMA 依序排列 [第三根K 開單]
+//    ▲開單前的五根K棒找止損點 
+
+//相關技術指標資料:
+//    GMMA ~ https://www.oanda.com/bvi-ft/lab-education/original_indicator/gmma/
+//        3,5,8,10,12,15 EMA [快線]
+//        30,35,45,50,60 EMA [慢線]
+
+//    費波那契數列 ~ https://zh.wikipedia.org/zh-tw/%E6%96%90%E6%B3%A2%E9%82%A3%E5%A5%91%E6%95%B0
+
+//    葛蘭碧法則 ~ https://www.oanda.com/bvi-ft/lab-education/technical_analysis/moving_average-granvilles_law/
+
+//    金叉定義: 紅線由下通過橘線/收盤價從原本 『都在紅橘線下方』 轉換成 『都在紅橘線上方』
+//    死差定義: 紅線由上通過橘線/收盤價從原本 『都在紅橘線上方』 轉換成 『都在紅橘線下方』
+
+//@version=5
+indicator("jash_test", overlay=true)
+
+// 定義EMA
+ema3 = ta.ema(close, 3)
+ema13 = ta.ema(close, 13)
+ema34 = ta.ema(close, 34)
+ema55 = ta.ema(close, 55)
+ema144 = ta.ema(close, 144)
+
+// 繪製EMA線
+plot(ema3, color=color.red, linewidth=2)
+plot(ema13, color=color.orange, linewidth=2)
+plot(ema34, color=color.blue, linewidth=2)
+plot(ema55, color=color.purple, linewidth=2)
+plot(ema144, color=color.black, linewidth=2)
+
+var bool buySignal = false
+var bool rbuySignal = false
+var bool bstopSignal = false
+var bool sellSignal = false
+var bool rsellSignal = false
+var bool sstopSignal = false
+var bool crossoverSignal = false
+var bool crossunderSignal = false
+
+
+
+crossoverSignal := (ta.crossover(ema3[1], ema13[1]) or ta.crossover(ema3[2], ema13[2]) or ta.crossover(ema3[3], ema13[3]))//上穿
+buySignal :=  (close > ema3) and (ema3 > ema13) and (ema13 > ema34) and (ema34 > ema55) and (ema55 > ema144) and crossoverSignal
+rbuySignal :=  (close > ema3) and (ema3 > ema144) and ta.crossover(ema3, ema55)
+bstopSignal := ta.crossunder(ema3[1], ema13[1]) and (ema13 > ema34) and (ema34 > ema55) and (ema55 > ema144)
+
+crossunderSignal := (ta.crossunder(ema3[1], ema13[1]) or ta.crossunder(ema3[2], ema13[2]) or ta.crossunder(ema3[3], ema13[3]))//下穿
+sellSignal := (close < ema3) and (ema13 < ema34) and (ema34 < ema55) and (ema55 < ema144) and crossunderSignal
+rsellSignal := (close < ema3) and (ema3 < ema144) and ta.crossunder(ema3[1], ema55[1])//下穿
+sstopSignal := ta.crossover(ema3[1], ema13[1]) and (ema13 < ema34) and (ema34 < ema55) and (ema55 < ema144)
+
+plotshape(series=buySignal, title="Buy Signal", location=location.belowbar, color=color.red,textcolor=color.white, style=shape.labelup, text="BUY")//
+plotshape(series=sellSignal, title="Sell Signal", location=location.abovebar, color=color.green,textcolor=color.white, style=shape.labeldown, text="SELL")//
+
+plotshape(series=bstopSignal, title="Buy Signal", location=location.belowbar, color=color.red,textcolor=color.white, style=shape.labelup, text="STOP")//
+plotshape(series=sstopSignal, title="Sell Signal", location=location.abovebar, color=color.green,textcolor=color.white, style=shape.labeldown, text="STOP")//
+
+plotshape(series=rbuySignal, title="Buy Signal", location=location.abovebar, color=color.purple,textcolor=color.white, style=shape.labeldown, text="初始_[ 買 ]")//
+plotshape(series=rsellSignal, title="Sell Signal", location=location.belowbar, color=color.purple,textcolor=color.white, style=shape.labelup, text="初始_[ 賣 ]")//
