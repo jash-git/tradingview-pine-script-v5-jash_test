@@ -1,0 +1,40 @@
+//判斷 K棒實體和EMA有交集
+//@version=5
+indicator("K-bar and EMA Crossover", overlay=true)
+
+// 計算 EMA
+ema3 = ta.ema(close, 3)
+ema13 = ta.ema(close, 13)
+
+var bool crossCondition = false
+var bool cross03 = false
+var bool cross13 = false
+var int count = 0
+
+count := 0
+if (open < ema3 and close > ema3) or (open > ema3 and close < ema3)
+    count :=count + 1
+	cross03 := true
+else
+	count :=count + 0
+    cross03 := false
+
+if (open < ema13 and close > ema13) or (open > ema13 and close < ema13)
+    count :=count + 1
+	cross13 := true	
+else
+	count :=count + 0
+    cross13 := false
+
+if (count > 1)//crossCondition := cross03 and cross13
+	crossCondition := true
+else
+	crossCondition := false
+
+// 如果條件成立，在 K 棒的最高價位置標註 "Get"
+plotshape(series=crossCondition, title="Get", location=location.abovebar, color=color.green, style=shape.labelup, text="Get", size=size.small)
+
+// 繪製 EMA
+plot(ema3, title="EMA3", color=color.red)
+plot(ema13, title="EMA13", color=color.blue)
+
