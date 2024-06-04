@@ -55,52 +55,71 @@ var bool overlap00 = false
 var int sum00 =0
 if ((open <= ema3 and ema3 <= close) or (ema3 <= open and close <= ema3))
 	sum00 := sum00 + 1
+
 if ((open <= ema13 and ema13 <= close) or (ema13 <= open and close <= ema13))
 	sum00 := sum00 + 1
+
 if ((open <= ema34 and ema34 <= close) or (ema34 <= open and close <= ema34))
 	sum00 := sum00 + 1
+
 if ((open <= ema55 and ema55 <= close) or (ema55 <= open and close <= ema55))
 	sum00 := sum00 + 1
+
 if ((open <= ema144 and ema144 <= close) or (ema144 <= open and close <= ema144))
 	sum00 := sum00 + 100
+
 if(sum00>2)
 	overlap00 = true
+
+///////
 	
 var bool overlap01 = false
 var int sum01 =0
 if ((open[1] <= ema3[1] and ema3[1] <= close[1]) or (ema3[1] <= open[1] and close[1] <= ema3[1]))
 	sum01 := sum01 + 1
+	
 if ((open[1] <= ema13[1] and ema13[1] <= close[1]) or (ema13[1] <= open[1] and close[1] <= ema13[1]))
 	sum01 := sum01 + 1
+	
 if ((open[1] <= ema34[1] and ema34[1] <= close[1]) or (ema34[1] <= open[1] and close[1] <= ema34[1]))
 	sum01 := sum01 + 1
+	
 if ((open[1] <= ema55[1] and ema55[1] <= close[1]) or (ema55[1] <= open[1] and close[1] <= ema55[1]))
 	sum01 := sum01 + 1
+	
 if ((open[1] <= ema144[1] and ema144[1] <= close[1]) or (ema144[1] <= open[1] and close[1] <= ema144[1]))
 	sum01 := sum01 + 10
+	
 if(sum01>2)
 	overlap01 := true	
+
+///////
 	
 var bool overlap02 = false
 var int sum02 =0
 if ((open[2] <= ema3[2] and ema3[2] <= close[2]) or (ema3[2] <= open[2] and close[2] <= ema3[2]))
 	sum02 := sum02 + 1
+	
 if ((open[2] <= ema13[2] and ema13[2] <= close[2]) or (ema13[2] <= open[2] and close[2] <= ema13[2]))
 	sum02 := sum02 + 1
+	
 if ((open[2] <= ema34[2] and ema34[2] <= close[2]) or (ema34[2] <= open[2] and close[2] <= ema34[2]))
 	sum02 := sum02 + 1
+	
 if ((open[2] <= ema55[2] and ema55[2] <= close[2]) or (ema55[2] <= open[2] and close[2] <= ema55[2]))
 	sum02 := sum02 + 1
+	
 if ((open[2] <= ema144[2] and ema144[2] <= close[2]) or (ema144[2] <= open[2] and close[2] <= ema144[2]))
 	sum02 := sum02 + 10
+	
 if(sum02>2)
 	overlap02 := true
 //---計算K棒實體是否有跨越EMA
 
 //---
 //EMA密集判斷
-var bool DenseSignal00 = false
-DenseSignal00 := not overlap00 //not (overlap00 or overlap01 or overlap02)	
+var bool DenseSignal = false
+DenseSignal := (overlap00 or overlap01) //(overlap00 or overlap01 or overlap02)	
 //---EMA密集判斷
 
 //---
@@ -134,12 +153,12 @@ sstopSignal := ta.crossover(ema3[1], ema13[1]) and (ema13 < ema34) and (ema34 < 
 
 //---
 //繪製買賣訊號
-plotshape(series=buySignal, title="Buy Signal", location=location.belowbar, color=color.red,textcolor=color.white, style=shape.labelup, text="BUY")//
-plotshape(series=sellSignal, title="Sell Signal", location=location.abovebar, color=color.green,textcolor=color.white, style=shape.labeldown, text="SELL")//
+plotshape(series=buySignal, title="Buy_Start", location=location.belowbar, color=color.red,textcolor=color.white, style=shape.labelup, text="買")//
+plotshape(series=sellSignal, title="Sell_Start", location=location.abovebar, color=color.green,textcolor=color.white, style=shape.labeldown, text="賣")//
 
-plotshape(series=bstopSignal, title="Buy Signal", location=location.belowbar, color=color.red,textcolor=color.white, style=shape.labelup, text="STOP")//
-plotshape(series=sstopSignal, title="Sell Signal", location=location.abovebar, color=color.green,textcolor=color.white, style=shape.labeldown, text="STOP")//
+plotshape(series=bstopSignal, title="Buy_Stop", location=location.belowbar, color=color.red,textcolor=color.white, style=shape.labelup, text="停")//
+plotshape(series=sstopSignal, title="Sell_Stop", location=location.abovebar, color=color.green,textcolor=color.white, style=shape.labeldown, text="停")//
 
-plotshape(series=rbuySignal, title="Buy Signal", location=location.abovebar, color=color.purple,textcolor=color.white, style=shape.labeldown, text="初始_[ 買 ]")//
-plotshape(series=rsellSignal, title="Sell Signal", location=location.belowbar, color=color.purple,textcolor=color.white, style=shape.labelup, text="初始_[ 賣 ]")//
+plotshape(series=rbuySignal, title="Reset_Buy", location=location.abovebar, color=color.purple,textcolor=color.white, style=shape.labeldown, text="初始_[ 買 ]")//
+plotshape(series=rsellSignal, title="Reset_Sell", location=location.belowbar, color=color.purple,textcolor=color.white, style=shape.labelup, text="初始_[ 賣 ]")//
 //---繪製買賣訊號
