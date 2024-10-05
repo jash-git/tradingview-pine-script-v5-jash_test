@@ -11,8 +11,8 @@
 //    03.該檔商品都未開倉 & 該機會要是葛蘭碧1、2[5、6]進入點
 //    04.整個趨勢要在[過濾線]同一側(確定K棒 之後)
 //    05.金死叉後的下一K棒 不可同時碰觸超過兩條EMA (超過表示趨勢線密集違反GMMA操作原則) 
-//    06.金叉的後的下一K棒 一定要滿足收盤價站上3EMA & 一定讓EMA 依序排列 [第三根K 開單]
-//    07.死叉的後的下一K棒 一定要滿足收盤價低於3EMA & 一定讓EMA 依序排列 [第三根K 開單]
+//    06.金叉的後的下一K棒 一定要滿足3EMA持續向上 & 一定讓EMA 依序排列 [第三根K 開單]
+//    07.死叉的後的下一K棒 一定要滿足3EMA持續向上 & 一定讓EMA 依序排列 [第三根K 開單]
 //    08.包含金死叉在內的所有K棒都不可碰觸[過濾線]
 //    09.開單前的五根K棒找止損點[對大值就是金叉/死叉到紫色線的價格]
 
@@ -169,8 +169,8 @@ DeathCross02 = ta.crossunder(ema3[2], ema13[2]) and (close[2]<=ema3[2])
 
 //---
 //前一K是順向/反向排列
-ForwardSignal01=(close[1]>= ema3[1]) and (ema3[1]> ema13[1]) and (ema13[1]> ema34[1]) and (ema34[1]> ema55[1]) and (ema55[1]> ema144[1])
-BackwardSignal01=(close[1]<= ema3[1]) and (ema3[1]< ema13[1]) and (ema13[1]< ema34[1]) and (ema34[1]< ema55[1]) and (ema55[1]< ema144[1])
+ForwardSignal01=(ema3[1]> ema3[2]) and (ema3[1]> ema13[1]) and (ema13[1]> ema34[1]) and (ema34[1]> ema55[1]) and (ema55[1]> ema144[1])
+BackwardSignal01=(ema3[1]< ema3[2]) and (ema3[1]< ema13[1]) and (ema13[1]< ema34[1]) and (ema34[1]< ema55[1]) and (ema55[1]< ema144[1])
 //---前一K是順向/反向排列
 
 //---
