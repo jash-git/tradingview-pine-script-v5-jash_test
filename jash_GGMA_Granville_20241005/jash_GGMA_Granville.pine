@@ -188,5 +188,12 @@ plotshape(series=BuyOpenSignal, location=location.belowbar, color=color.red, sty
 plotshape(series=SellOpenSignal, location=location.abovebar, color=color.green, style=shape.triangledown, text="開倉_賣" ,textcolor=color.green,title="開倉_賣")
 //---規則02_05_06_07_08
 
+//---
+//全域系統提醒報警訊號
+var bool AlarmSignal = false
+AlarmSignal := BuyOpenSignal or SellOpenSignal or (GoldenCross and (ema3>ema144)) or (GoldenCross and (ema3<=ema144)) or (DeathCross and (ema3<ema144)) or (DeathCross and (ema3>=ema144))
+
+plotshape(series=AlarmSignal, location=location.top, color=color.orange, style=shape.flag, text="" ,textcolor=color.black,title="系統通知")
+//---全域系統提醒報警訊號
 
 //PS 規則:03、04和09 無法實作
