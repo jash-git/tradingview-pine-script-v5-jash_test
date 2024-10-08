@@ -9,12 +9,13 @@
 //    01.紅色(快線) 和 紫色(慢線) 交叉就是葛蘭碧法則重新計算訊號 (過濾線之上為Up/過濾線之下為Down)
 //    02.確定K棒(金死叉) : 紅橘兩線交叉的K棒 & K棒收盤價站回紅線 上方/下方 
 //    03.該檔商品都未開倉 & 該機會要是葛蘭碧1、2[5、6]進入點
-//    04.整個趨勢要在[過濾線]同一側(確定K棒 之後)
+//    04.整個趨勢要在[過濾線]同一側(從金死叉前一根開始所有K棒的open/close都不可碰到)
 //    05.金死叉後的下一K棒 不可同時碰觸超過兩條EMA (超過表示趨勢線密集違反GMMA操作原則) 
 //    06.金叉的後的下一K棒 一定要滿足3EMA持續向上 & 一定讓EMA 依序排列 [第三根K 開單]
 //    07.死叉的後的下一K棒 一定要滿足3EMA持續向上 & 一定讓EMA 依序排列 [第三根K 開單]
 //    08.包含金死叉在內的所有K棒都不可碰觸[過濾線]
 //    09.開單前的五根K棒找止損點[對大值就是金叉/死叉到紫色線的價格]
+//    10.重新計算訊號頻繁出現 (間隔不超過6根K) 那麼下一次交易訊號不要進場
 
 //相關技術指標資料:
 //    GMMA ~ https://www.oanda.com/bvi-ft/lab-education/original_indicator/gmma/
@@ -167,12 +168,6 @@ GoldenCross02 = ta.crossover(ema3[2], ema13[2]) and (close[2]>=ema3[2])
 DeathCross02 = ta.crossunder(ema3[2], ema13[2]) and (close[2]<=ema3[2])
 //---前二K是金死叉訊號計算
 
-
-//---
-//當下K是順向/反向排列
-ForwardSignal00=(ema3[0]> ema3[1]) and (ema3[0]> ema13[0]) and (ema13[0]> ema34[0]) and (ema34[0]> ema55[0]) and (ema55[0]> ema144[0])
-BackwardSignal00=(ema3[0]< ema3[1]) and (ema3[0]< ema13[0]) and (ema13[0]< ema34[0]) and (ema34[0]< ema55[0]) and (ema55[0]< ema144[0])
-//---當下K是順向/反向排列
 //---
 //前一K是順向/反向排列
 ForwardSignal01=(ema3[1]> ema3[2]) and (ema3[1]> ema13[1]) and (ema13[1]> ema34[1]) and (ema34[1]> ema55[1]) and (ema55[1]> ema144[1])
@@ -186,8 +181,9 @@ BackwardSignal01=(ema3[1]< ema3[2]) and (ema3[1]< ema13[1]) and (ema13[1]< ema34
 //05:(not overlap01)
 //06_07:ForwardSignal01/BackwardSignal01
 //08:(sum02<10)
-BuyOpenSignal=((GoldenCross02 and (sum02<10)) or ResetCrossUP02) and ForwardSignal01 and (not overlap01) and (sum02<4) and ForwardSignal00
-SellOpenSignal=((DeathCross02 and (sum02<10)) or ResetCrossDown02) and BackwardSignal01 and (not overlap01) and (sum02<4) and BackwardSignal00
+//04:(not (((high[3] <= ema144[3] and ema144[3] <= low[3]) or (ema144[3] <= high[3] and low[3] <= ema144[3]))))
+BuyOpenSignal=((GoldenCross02 and (sum02<10)) or ResetCrossUP02) and ForwardSignal01 and (not overlap01) and (close>ema3) and (not (((open[3] <= ema144[3] and ema144[3] <= close[3]) or (ema144[3] <= open[3] and close[3] <= ema144[3]))))
+SellOpenSignal=((DeathCross02 and (sum02<10)) or ResetCrossDown02) and BackwardSignal01 and (not overlap01) and (close<ema3) and (not (((open[3] <= ema144[3] and ema144[3] <= close[3]) or (ema144[3] <= open[3] and close[3] <= ema144[3]))))
 
 //標示開倉叉訊號
 plotshape(series=BuyOpenSignal, location=location.belowbar, color=color.red, style=shape.triangleup, text="開倉_買" ,textcolor=color.red,title="開倉_買")
@@ -202,4 +198,4 @@ AlarmSignal := BuyOpenSignal or SellOpenSignal or (GoldenCross and (ema3>ema144)
 plotshape(series=AlarmSignal, location=location.top, color=color.orange, style=shape.flag, text="" ,textcolor=color.black,title="系統通知")
 //---全域系統提醒報警訊號
 
-//PS 規則:03、04和09 無法實作
+//PS 規則:03、10無法實作
