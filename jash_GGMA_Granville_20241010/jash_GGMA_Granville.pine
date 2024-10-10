@@ -1,0 +1,201 @@
+//改[GMMA + 葛蘭碧法則] by jash
+
+//參數:(費波那契數列)
+//    3,13 EMA [快線] ~ 紅色,橘色[有賺/打平 出場]
+//    34,55 EMA [慢線] ~ 藍色[打平/小賠 出場],紫色[死透抬出場]
+//    144 EMA [過濾線] ~ 白色/黑色 (看系統背景色來設定)[多空分水嶺]
+
+//規則:
+//    01.紅色(快線) 和 紫色(慢線) 交叉就是葛蘭碧法則重新計算訊號 (過濾線之上為Up/過濾線之下為Down)
+//    02.確定K棒(金死叉) : 紅橘兩線交叉的K棒 & K棒收盤價站回紅線 上方/下方 
+//    03.該檔商品都未開倉 & 該機會要是葛蘭碧1、2[5、6]進入點
+//    04.整個趨勢要在[過濾線]同一側(從金死叉前一根開始所有K棒的open/close都不可碰到)
+//    05.金死叉後的下一K棒 不可同時碰觸超過兩條EMA (超過表示趨勢線密集違反GMMA操作原則) 
+//    06.金叉的後的下一K棒 一定要滿足3EMA持續向上 & 一定讓EMA 依序排列 [第三根K 開單]
+//    07.死叉的後的下一K棒 一定要滿足3EMA持續向上 & 一定讓EMA 依序排列 [第三根K 開單]
+//    08.包含金死叉在內的所有K棒都不可碰觸[過濾線]
+//    09.止損點[金叉/死叉 開盤價/對應紫色EMA價]
+//    10.重新計算訊號頻繁出現 (間隔不超過6根K) 那麼下一次交易訊號不要進場
+
+//相關技術指標資料:
+//    GMMA ~ https://www.oanda.com/bvi-ft/lab-education/original_indicator/gmma/
+//        3,5,8,10,12,15 EMA [快線]
+//        30,35,45,50,60 EMA [慢線]
+
+//    費波那契數列 ~ https://zh.wikipedia.org/zh-tw/%E6%96%90%E6%B3%A2%E9%82%A3%E5%A5%91%E6%95%B0
+
+//    葛蘭碧法則 ~ https://www.oanda.com/bvi-ft/lab-education/technical_analysis/moving_average-granvilles_law/
+
+//    金叉定義: 紅線由下通過橘線/收盤價從原本 『都在紅橘線下方』 轉換成 『都在紅橘線上方』
+//    死差定義: 紅線由上通過橘線/收盤價從原本 『都在紅橘線上方』 轉換成 『都在紅橘線下方』
+
+//@version=5
+indicator("jash_GGMA_Granville", overlay=true)
+
+//---
+//定義EMA
+ema3 = ta.ema(close, 3)
+ema13 = ta.ema(close, 13)
+ema34 = ta.ema(close, 34)
+ema55 = ta.ema(close, 55)
+ema144 = ta.ema(close, 144)
+//---定義EMA
+
+//---
+//繪製EMA線
+plot(ema3, color=color.red, linewidth=2,title="ema3")
+plot(ema13, color=color.orange, linewidth=2,title="ema13")
+plot(ema34, color=color.blue, linewidth=2,title="ema34")
+plot(ema55, color=color.purple, linewidth=2,title="ema55")
+plot(ema144, color=color.black, linewidth=2,title="ema144")
+//---繪製EMA線
+
+//---
+//規則01
+//檢查葛蘭碧法則重新計算訊號
+ResetCrossUP = ta.crossover(ema3, ema55) and (close>=ema3)
+ResetCrossDown = ta.crossunder(ema3, ema55) and (close<=ema3)
+
+//標示葛蘭碧法則重新計算訊號
+plotshape(series=ResetCrossUP, location=location.belowbar, color=color.purple, style=shape.triangleup, text="Reset_Up" ,textcolor=color.purple,title="Reset_Up")
+plotshape(series=ResetCrossDown, location=location.abovebar, color=color.purple, style=shape.triangledown, text="Reset_Down" ,textcolor=color.purple,title="Reset_Down")
+//---規則01
+
+//---
+//規則02
+//金死叉訊號計算
+GoldenCross = ta.crossover(ema3, ema13) and (close>=ema3)
+DeathCross = ta.crossunder(ema3, ema13) and (close<=ema3)
+		
+//標示金死叉訊號 [金死叉訊號文字]
+plotshape(series=(GoldenCross and (ema3>ema144)), location=location.belowbar, color=color.red, style=shape.triangleup, text="Up" ,textcolor=color.red,title="Up")
+plotshape(series=(GoldenCross and (ema3<=ema144)), location=location.belowbar, color=color.black, style=shape.triangleup, text="平倉_買" ,textcolor=color.black,title="平倉_買")
+plotshape(series=(DeathCross and (ema3<ema144)), location=location.abovebar, color=color.green, style=shape.triangledown, text="Down" ,textcolor=color.green,title="Down")
+plotshape(series=(DeathCross and (ema3>=ema144)), location=location.abovebar, color=color.black, style=shape.triangledown, text="平倉_賣" ,textcolor=color.black,title="平倉_賣")
+//---規則02
+
+
+//---
+//計算K棒實體是否有跨越EMA	
+var bool overlap01 = false
+var int sum01 = 0//計算前一K棒交集EMA線數量統計
+
+sum01 := 0
+if ((open[1] <= ema3[1] and ema3[1] <= close[1]) or (ema3[1] <= open[1] and close[1] <= ema3[1]))
+	sum01 := sum01 + 1
+else
+	sum01 := sum01 + 0
+	
+if ((open[1] <= ema13[1] and ema13[1] <= close[1]) or (ema13[1] <= open[1] and close[1] <= ema13[1]))
+	sum01 := sum01 + 1
+else
+	sum01 := sum01 + 0
+	
+if ((open[1] <= ema34[1] and ema34[1] <= close[1]) or (ema34[1] <= open[1] and close[1] <= ema34[1]))
+	sum01 := sum01 + 1
+else
+	sum01 := sum01 + 0
+	
+if ((open[1] <= ema55[1] and ema55[1] <= close[1]) or (ema55[1] <= open[1] and close[1] <= ema55[1]))
+	sum01 := sum01 + 1
+else
+	sum01 := sum01 + 0
+	
+if ((open[1] <= ema144[1] and ema144[1] <= close[1]) or (ema144[1] <= open[1] and close[1] <= ema144[1]))
+	sum01 := sum01 + 10
+else
+	sum01 := sum01 + 0
+
+overlap01 := false	
+if(sum01>2)
+	overlap01 := true	
+else
+	overlap01 := false
+	
+///////
+	
+var bool overlap02 = false
+var int sum02 = 0//計算前二K棒交集EMA線數量統計
+
+sum02 := 0
+if ((open[2] <= ema3[2] and ema3[2] <= close[2]) or (ema3[2] <= open[2] and close[2] <= ema3[2]))
+	sum02 := sum02 + 1
+else
+	sum02 := sum02 + 0
+	
+if ((open[2] <= ema13[2] and ema13[2] <= close[2]) or (ema13[2] <= open[2] and close[2] <= ema13[2]))
+	sum02 := sum02 + 1
+else
+	sum02 := sum02 + 0	
+	
+if ((open[2] <= ema34[2] and ema34[2] <= close[2]) or (ema34[2] <= open[2] and close[2] <= ema34[2]))
+	sum02 := sum02 + 1
+else
+	sum02 := sum02 + 0
+	
+if ((open[2] <= ema55[2] and ema55[2] <= close[2]) or (ema55[2] <= open[2] and close[2] <= ema55[2]))
+	sum02 := sum02 + 1
+else
+	sum02 := sum02 + 0
+	
+if ((open[2] <= ema144[2] and ema144[2] <= close[2]) or (ema144[2] <= open[2] and close[2] <= ema144[2]))
+	sum02 := sum02 + 10
+else
+	sum02 := sum02 + 0
+
+overlap02 := false	
+if(sum02>2)
+	overlap02 := true
+else
+	overlap02 := false	
+//---計算K棒實體是否有跨越EMA
+
+//---
+//EMA密集判斷
+var bool DenseSignal = false
+DenseSignal := (overlap01 or overlap02)	
+//---EMA密集判斷
+
+//---
+//前二K是Reset訊號計算
+ResetCrossUP02 = ta.crossover(ema3[2], ema55[2]) and (close[2]>=ema3[2]) and (ema13[2]>=ema55[2])
+ResetCrossDown02 = ta.crossunder(ema3[2], ema55[2]) and (close[2]<=ema3[2]) and (ema13[2]<=ema55[2])
+//---前二K是Reset訊號計算
+
+//---
+//前二K是金死叉訊號計算
+GoldenCross02 = ta.crossover(ema3[2], ema13[2]) and (close[2]>=ema3[2])
+DeathCross02 = ta.crossunder(ema3[2], ema13[2]) and (close[2]<=ema3[2])
+//---前二K是金死叉訊號計算
+
+//---
+//前一K是順向/反向排列
+ForwardSignal01=(ema3[1]> ema3[2]) and (ema3[1]> ema13[1]) and (ema13[1]> ema34[1]) and (ema34[1]> ema55[1]) and (ema55[1]> ema144[1])
+BackwardSignal01=(ema3[1]< ema3[2]) and (ema3[1]< ema13[1]) and (ema13[1]< ema34[1]) and (ema34[1]< ema55[1]) and (ema55[1]< ema144[1])
+//---前一K是順向/反向排列
+
+//---
+//規則02_05_06_07_08
+//開倉訊號計算
+//02:GoldenCross02/DeathCross02 or ResetCrossUP02/ResetCrossDown02
+//05:(not overlap01)
+//06_07:ForwardSignal01/BackwardSignal01 and (ema3>=ema3[1])/(ema3<=ema3[1])
+//08:(sum02<10)
+//04:(not (((high[3] <= ema144[3] and ema144[3] <= low[3]) or (ema144[3] <= high[3] and low[3] <= ema144[3]))))
+BuyOpenSignal=((GoldenCross02 and (sum02<10)) or ResetCrossUP02) and ForwardSignal01 and (not overlap01) and (ema3>=ema3[1]) and (not (((open[3] <= ema144[3] and ema144[3] <= close[3]) or (ema144[3] <= open[3] and close[3] <= ema144[3]))))
+SellOpenSignal=((DeathCross02 and (sum02<10)) or ResetCrossDown02) and BackwardSignal01 and (not overlap01) and (ema3<=ema3[1]) and (not (((open[3] <= ema144[3] and ema144[3] <= close[3]) or (ema144[3] <= open[3] and close[3] <= ema144[3]))))
+
+//標示開倉叉訊號
+plotshape(series=BuyOpenSignal, location=location.belowbar, color=color.red, style=shape.triangleup, text="開倉_買" ,textcolor=color.red,title="開倉_買")
+plotshape(series=SellOpenSignal, location=location.abovebar, color=color.green, style=shape.triangledown, text="開倉_賣" ,textcolor=color.green,title="開倉_賣")
+//---規則02_05_06_07_08
+
+//---
+//全域系統提醒報警訊號
+var bool AlarmSignal = false
+AlarmSignal := BuyOpenSignal or SellOpenSignal or (GoldenCross and (ema3>ema144)) or (GoldenCross and (ema3<=ema144)) or (DeathCross and (ema3<ema144)) or (DeathCross and (ema3>=ema144))
+
+plotshape(series=AlarmSignal, location=location.top, color=color.orange, style=shape.flag, text="" ,textcolor=color.black,title="系統通知")
+//---全域系統提醒報警訊號
+
+//PS 規則:03、10無法實作
