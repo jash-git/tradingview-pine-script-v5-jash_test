@@ -16,6 +16,7 @@
 //    08.包含金死叉在內的所有K棒都不可碰觸[過濾線]
 //    09.止損點[金叉/死叉 的K棒和紅線第一次接觸點]
 //    10.重新計算訊號頻繁出現 (間隔不超過6根K) 那麼下一次交易訊號不要進場
+//    11.重新計算訊號在過濾線另一側出現，那就要人工等待觀察到底是停止訊號先出現，又或者是滿則依序排列狀況出現
 
 //相關技術指標資料:
 //    GMMA ~ https://www.oanda.com/bvi-ft/lab-education/original_indicator/gmma/
@@ -176,6 +177,7 @@ BackwardSignal01=(ema3[1]< ema3[2]) and (ema3[1]< ema13[1]) and (ema13[1]< ema34
 
 //---
 //規則02_05_06_07_08
+
 //開倉訊號計算
 //02:GoldenCross02/DeathCross02 or ResetCrossUP02/ResetCrossDown02
 //05:(not overlap01)
@@ -184,17 +186,21 @@ BackwardSignal01=(ema3[1]< ema3[2]) and (ema3[1]< ema13[1]) and (ema13[1]< ema34
 //04:((ema3[3]>=ema144[3]) and (ema13[3]>=ema144[3]) and (ema34[3]>=ema144[3]) and (ema55[3]>=ema144[3])) / ((ema3[3]<=ema144[3]) and (ema13[3]<=ema144[3]) and (ema34[3]<=ema144[3]) and (ema55[3]<=ema144[3]))
 BuyOpenSignal=((GoldenCross02 and (sum02<10)) or ResetCrossUP02) and ForwardSignal01 and (not overlap01) and (ema3>=ema3[1]) and ((ema3[3]>=ema144[3]) and (ema13[3]>=ema144[3]) and (ema34[3]>=ema144[3]) and (ema55[3]>=ema144[3]))
 SellOpenSignal=((DeathCross02 and (sum02<10)) or ResetCrossDown02) and BackwardSignal01 and (not overlap01) and (ema3<=ema3[1]) and ((ema3[3]<=ema144[3]) and (ema13[3]<=ema144[3]) and (ema34[3]<=ema144[3]) and (ema55[3]<=ema144[3]))
+
 //標示開倉叉訊號
 plotshape(series=BuyOpenSignal, location=location.belowbar, color=color.red, style=shape.triangleup, text="開倉_買" ,textcolor=color.red,title="開倉_買")
 plotshape(series=SellOpenSignal, location=location.abovebar, color=color.green, style=shape.triangledown, text="開倉_賣" ,textcolor=color.green,title="開倉_賣")
+
 //---規則02_05_06_07_08
 
 //---
 //全域系統提醒報警訊號
+
 var bool AlarmSignal = false
 AlarmSignal := BuyOpenSignal or SellOpenSignal or (GoldenCross and (ema3>ema144)) or (GoldenCross and (ema3<=ema144)) or (DeathCross and (ema3<ema144)) or (DeathCross and (ema3>=ema144))
 
 plotshape(series=AlarmSignal, location=location.top, color=color.orange, style=shape.flag, text="" ,textcolor=color.black,title="系統通知")
+
 //---全域系統提醒報警訊號
 
-//PS 規則:03、10無法實作
+//PS 規則:03、10、11無法實作無法實作
