@@ -1,0 +1,5 @@
+//@version=5
+indicator(title="Average True Range", shorttitle="ATR", overlay=false)
+length = input.int(13, minval=1)
+atrValue = ta.sma(ta.tr, length)
+plot(atrValue, color=color.rgb(3, 92, 6), offset=10,linewidth=3,title="ATR13")

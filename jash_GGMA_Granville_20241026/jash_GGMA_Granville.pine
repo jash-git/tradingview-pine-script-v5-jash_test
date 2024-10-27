@@ -52,13 +52,6 @@ plot(ema144, color=color.black, linewidth=2,title="ema144")
 //---繪製EMA線
 
 //---
-//計算&繪製ATR13線
-length = input.int(13, minval=1)
-atrValue = ta.sma(ta.tr, length)
-plot(atrValue, color=color.rgb(3, 92, 6), offset=13,linewidth=3,title="ATR13")
-//計算&繪製ATR13線
-
-//---
 //規則01
 //檢查葛蘭碧法則重新計算訊號
 ResetCrossUP = ta.crossover(ema3, ema55) and (close>=ema3)
