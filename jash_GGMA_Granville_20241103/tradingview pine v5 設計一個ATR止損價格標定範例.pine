@@ -1,0 +1,55 @@
+tradingview pine v5 設計一個ATR止損價格標定範例
+
+首先計算 每根K所對應的ATR13的數值
+如果 EMA3>EMA55 且 前一根K的最大值-最低值 小於 ATR13 那麼當下K的止損價=當下K的開盤價-(前一根K的最低價+ATR13值)
+如果 EMA3>EMA55 且 前一根K的最大值-最低值 大於 ATR13 但小於(ATR13值*2) 那麼當下K的止損價=當下K的開盤價-(ATR13值*2)
+如果 EMA3>EMA55 且 前一根K的最大值-最低值 大於 (ATR13*2) 那麼當下K的止損價=當下K的開盤價-(ATR13值*3)
+
+如果 EMA3<EMA55 且 前一根K的最大值-最低值 小於 ATR13 那麼當下K的止損價=當下K的開盤價+(前一根K的最低價+ATR13值)
+如果 EMA3<EMA55 且 前一根K的最大值-最低值 大於 ATR13 但小於(ATR13值*2) 那麼當下K的止損價=當下K的開盤價+(ATR13值*2)
+如果 EMA3<EMA55 且 前一根K的最大值-最低值 大於 (ATR13*2) 那麼當下K的止損價=當下K的開盤價+(ATR13值*3)
+
+
+//@version=5
+indicator("複雜的ATR止損策略", overlay=true)
+
+// 設定指標長度
+ema3_length = 3
+ema55_length = 55
+atr_length = 13
+
+//---
+//計算和標示止損
+
+// 計算指標
+atr13 = ta.atr(13)
+
+// 前一根K棒的數值
+prev_high = high[1]
+prev_low = low[1]
+prev_range = prev_high - prev_low
+
+// 當前K棒的開盤價
+current_open = open
+
+// 計算止損價
+var float stop_loss = na
+
+if ema3 > ema55
+    if prev_range < atr13
+        stop_loss := current_open - (prev_low + atr13)
+    else if prev_range > atr13 and prev_range <= (atr13 * 2)
+        stop_loss := current_open - (atr13 * 2)
+    else if prev_range > (atr13 * 2)
+        stop_loss := current_open - (atr13 * 3)
+else
+    if prev_range < atr13
+        stop_loss := current_open + (prev_low + atr13)
+    else if prev_range > atr13 and prev_range <= (atr13 * 2)
+        stop_loss := current_open + (atr13 * 2)
+    else if prev_range > (atr13 * 2)
+        stop_loss := current_open + (atr13 * 3)
+
+// 畫出止損價線
+plot(stop_loss, title="StopLoss", color=color.green, linewidth=2, style=style_cross)
+//---計算和標示止損
