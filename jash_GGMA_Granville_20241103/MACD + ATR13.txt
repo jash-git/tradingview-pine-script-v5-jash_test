@@ -1,0 +1,26 @@
+//@version=5
+//使用 TradingView pine script V5 設計一個MACD和ATR13的整合指標 [copilot]
+indicator("MACD + ATR13", overlay=false)
+
+// MACD 計算
+fastLength = input.int(12, title="Fast Length")
+slowLength = input.int(26, title="Slow Length")
+signalSmoothing = input.int(9, title="Signal Smoothing")
+[macdLine, signalLine, _] = ta.macd(close, fastLength, slowLength, signalSmoothing)
+macdHist = macdLine - signalLine
+
+// ATR 計算
+atrLength = input.int(13, minval=1)
+atrValue = ta.sma(ta.tr, length)
+
+// 繪製 MACD
+plot(macdLine, color=color.red, title="MACD Line")
+plot(signalLine, color=color.green, title="Signal Line")
+plot(macdHist, color=(macdHist >= 0 ? color.red : color.green), title="MACD Histogram", style=plot.style_columns, linewidth=2)
+
+// 繪製 ATR
+plot(atrValue, color=color.black, offset=3, title="ATR13", linewidth=3)
+
+// 背景顏色區分
+bgcolor(macdHist > 0 ? color.new(color.red, 90) : color.new(color.green, 90))
+

@@ -196,7 +196,8 @@ plotshape(series=SellOpenSignal, location=location.abovebar, color=color.green, 
 //計算和標示止損
 
 // 計算指標
-atr13 = ta.atr(13)
+length = input.int(13, minval=1)
+atr13 = ta.sma(ta.tr, length)
 
 // 前一根K棒的數值
 prev_high = high[1]
@@ -204,25 +205,25 @@ prev_low = low[1]
 prev_range = prev_high - prev_low
 
 // 當前K棒的開盤價
-current_open = open
+prev_close = close[1]
 
 // 計算止損價
 var float stop_loss = na
 
-if ema3 > ema55
-    if prev_range < atr13
-        stop_loss := current_open - (prev_low + atr13)
+if ema3 >= ema55
+    if prev_range <= atr13
+        stop_loss := prev_close - (prev_low + atr13)
     else if prev_range > atr13 and prev_range <= (atr13 * 2)
-        stop_loss := current_open - (atr13 * 2)
+        stop_loss := prev_close - (atr13 * 2)
     else if prev_range > (atr13 * 2)
-        stop_loss := current_open - (atr13 * 3)
+        stop_loss := prev_close - (atr13 * 3)
 else
-    if prev_range < atr13
-        stop_loss := current_open + (prev_low + atr13)
+    if prev_range <= atr13
+        stop_loss := prev_close + (prev_low + atr13)
     else if prev_range > atr13 and prev_range <= (atr13 * 2)
-        stop_loss := current_open + (atr13 * 2)
+        stop_loss := prev_close + (atr13 * 2)
     else if prev_range > (atr13 * 2)
-        stop_loss := current_open + (atr13 * 3)
+        stop_loss := prev_close + (atr13 * 3)
 
 // 畫出止損價線
 plot(stop_loss, title="StopLoss", color=color.green, linewidth=3, style=plot.style_cross)
