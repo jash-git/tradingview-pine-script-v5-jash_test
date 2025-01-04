@@ -7,10 +7,10 @@ smd = input(true, title="Show MacD & Signal Line? Also Turn Off Dots Below")
 sd = input(true, title="Show Dots When MacD Crosses Signal Line?")
 sh = input(true, title="Show Histogram?")
 
-// Parameters
-fastLength = input.int(12, minval=1, title="Fast Length")
-slowLength = input.int(26, minval=1, title="Slow Length")
-signalLength = input.int(9, minval=1, title="Signal Length")
+// Parameters [https://www.youtube.com/shorts/j67cSPJbfDM] 12->6 26->10 9->16
+fastLength = input.int(6, minval=1, title="Fast Length")
+slowLength = input.int(10, minval=1, title="Slow Length")
+signalLength = input.int(16, minval=1, title="Signal Length")
 
 // ATR 計算
 atrLength = input.int(13, minval=1)
