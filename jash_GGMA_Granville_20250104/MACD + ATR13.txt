@@ -39,7 +39,8 @@ macd_color = macd > macd[1] ? color.red : color.green
 signal_color = color.yellow
 
 // Cross point color
-cross_color = color.orange
+gol_cross_color = color.orange
+dea_cross_color = color.gray
 
 // Zero line color
 zero_line_color = color.blue
@@ -50,7 +51,8 @@ circleYPosition = signal
 plot(smd and macd ? macd : na, title="MACD", color=macd_color, linewidth=4)
 plot(smd and signal ? signal : na, title="Signal Line", color=signal_color, style=plot.style_line, linewidth=2)
 plot(sh and hist ? hist : na, title="Histogram", color=hist_color, style=plot.style_histogram, linewidth=4)
-plot(sd and ta.crossover(macd, signal) ? circleYPosition : na, title="Cross", style=plot.style_circles, linewidth=4, color=cross_color)
+plot(sd and ta.crossover(macd, signal) ? circleYPosition : na, title="Cross", style=plot.style_circles, linewidth=10, color=gol_cross_color)
+plot(sd and ta.crossunder(macd, signal) ? circleYPosition : na, title="Cross", style=plot.style_circles, linewidth=10, color=dea_cross_color)
 
 // Zero line
 hline(0, "0 Line", linestyle=hline.style_solid, linewidth=2, color=zero_line_color)
