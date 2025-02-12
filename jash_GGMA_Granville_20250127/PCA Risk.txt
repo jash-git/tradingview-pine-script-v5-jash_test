@@ -1,0 +1,540 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Julien-PH
+//@version=5
+//[https://www.youtube.com/shorts/HAEl7jLc8tY]
+
+indicator(title="PCA Risk Indicator", shorttitle="PCA-RI", overlay=false)
+
+//---- Settings
+source          = input.source(defval=close , title='Source'    , group='General setting')
+mtf             = input.timeframe(defval='' , title='Timeframe' , group='General setting')
+
+//---- Display
+display_input   = input.bool(false, title="Display raw input indicators ?"  , group="Display")
+offsetDisplay   = input.int(defval=-100, title="Offset raw input indicators", group="Display")
+display_output  = input.bool(true,  title="Display output indicators ?"     , group="Display")
+ncPCA           = input.string('Centered Reduced', title='How to display all PCA indicators ?', options=['Centered Reduced','Original'], group='Display')
+
+
+//---- Method
+MaxMinNz(value,max=100,min=0,def=50) =>
+    nz(math.max(math.min(value,max),min),def)
+    
+isPL(src=close,left=3,right=0) =>
+    ta.pivotlow(src,left,right)
+
+isPH(src=close,left=3,right=0) =>
+    ta.pivothigh(src,left,right)
+
+wtMethod(l1, l2, ampl=0.5, offset=50) =>
+    esa = ta.ema(hlc3, l1)
+    ci = (hlc3 - esa) / (0.015 * ta.ema(math.abs(hlc3 - esa), l1))
+    wt1 = MaxMinNz(ta.ema(ci, l2)*ampl + offset)
+    wt2 = nz(ta.sma(wt1,3),50)
+    [wt1,wt2]
+
+distanceSMA(l,ampl,offset) =>
+    sma = ta.sma(source, l)
+    MaxMinNz( ((source - sma) / sma)* ampl + offset )
+
+williamsRangeMethod(length) =>
+	(source - ta.lowest(length)) / (ta.highest(length) - ta.lowest(length)) * 100
+	
+momentumMethod(length,ampl=100, offset=50) =>
+    MaxMinNz((source/source[length]-1)*ampl+offset)
+
+stochasticRsiMethod(rsi,rsiLength,smoothK,smoothD,offset=50) =>
+    k       = ta.sma(ta.stoch(rsi, rsi, rsi, rsiLength), smoothK)
+    d       = ta.sma(k, smoothD)
+    kdDelta = MaxMinNz((k - d) + offset)
+    [k,d,kdDelta]
+
+rviMethod(lengthStDev,lengthEma) =>
+    stddev  = ta.stdev(source,lengthStDev)
+    upper   = ta.ema(ta.change(source) <= 0 ? 0 : stddev, lengthEma)
+    lower   = ta.ema(ta.change(source) >  0 ? 0 : stddev, lengthEma)
+    rvi     = upper / (upper + lower) * 100
+
+double_smoothEMA(src, long, short) =>
+	ta.ema(ta.ema(src, long), short)
+
+tsiMethod(long, short, ampl=60, offset=50) =>
+    dsTSI   = double_smoothEMA(ta.change(source), long, short)
+    dsAbsTSI= double_smoothEMA(math.abs(ta.change(source)), long, short)
+    tsi     = MaxMinNz(ampl*(dsTSI/dsAbsTSI)+offset)
+
+bbMethod(length,mult) =>
+    [middle, upper, lower] = ta.bb(source,length,mult)
+    MaxMinNz( ((source - lower) / (upper - lower)) * 100 )
+
+stcMethod(length, fastLength, slowLength) =>
+    m       = ta.ema(source, fastLength) - ta.ema(source, slowLength)
+    Kstc    = nz(fixnan(ta.stoch(m, m, m, length)))
+    Dstc    = ta.ema(Kstc, 3)
+    KDstc   = nz(fixnan(ta.stoch(Dstc, Dstc, Dstc, 3)))
+    stc     = ta.ema(KDstc, 3)
+    stc     := math.max(math.min(stc, 100), 0)
+
+aroonMethod(lengthUp,lengthDown) =>
+    up      = (100 * (ta.highestbars(high, lengthUp+1)   + lengthUp)  /lengthUp  )
+    down    = (-100 * (ta.lowestbars(low  , lengthDown+1) + lengthDown)/lengthDown) + 100   //Down adjusted to match the 0 with the bottom and 100 with the top
+    [up,down]
+
+haCountMethod(length) =>
+    [haclose,haopen] = request.security(ticker.heikinashi(syminfo.tickerid), mtf, [close,open])
+    hac = 50.0
+    hac := if barstate.isfirst
+        50
+    else if haclose > haopen
+        hac[1] / length + (100 * ((length - 1)/length))
+    else if haclose < haopen
+        hac[1] / length
+    else
+        hac[1]
+    
+cmfMethod(length,ampl=150,offset=50) =>
+    mfv = math.sum(((high == low) ? 0 : ((close - low) - (high - close)) / (high - low)) * volume, length) / math.sum(volume, length)
+    MaxMinNz(mfv * ampl + offset)
+
+TDSMethod(length=4,maxTD=13) =>
+    TDSUp       = 0
+    TDSUp       := source > source[length] ? nz(TDSUp[1]  ) + 1 : 0
+    TDSDown     = 0
+    TDSDown     := source < source[length] ? nz(TDSDown[1]) - 1 : 0
+    [MaxMinNz((((TDSUp + TDSDown) / maxTD) + 1) * 50),TDSUp,TDSDown]
+    
+isInBullDivergence(indicator,price=close,length=100,confirm=true,confLength=1) =>
+    isDiv = 0
+    confirmOffset = confirm ? confLength : 0
+    LL = indicator[0+confirmOffset]
+    if (isPL(indicator,right=confirmOffset) and indicator < 50)
+        for i = 1+confirmOffset to length+confirmOffset
+    		if (LL > indicator[i] and indicator[i] < indicator[i+1])
+    		    LL := indicator[i]
+    		    if (price[i] > price[confirmOffset] and ta.lowestbars(price,i) < 3)
+    		        isDiv := i
+    isDiv
+
+isInBearDivergence(indicator,price=close,length=100,confirm=true,confLength=1) =>
+    isDiv = 0
+    confirmOffset = confirm ? confLength : 0
+    HH = indicator[0+confirmOffset]
+    if (isPH(indicator,right=confirmOffset) and indicator > 50)
+        for i = 1+confirmOffset to length+confirmOffset
+    		if (HH < indicator[i] and indicator[i] > indicator[i+1])
+    		    HH := indicator[i]
+    		    if (price[i] < price[confirmOffset] and ta.highestbars(price,i) < 3)
+    		        isDiv := i
+    isDiv
+
+findDivergences(indicator,price=close,length=100,confirm=true,confLength=1) =>
+    bullDiv = isInBullDivergence(indicator,price,length,confirm,confLength)
+    bearDiv = isInBearDivergence(indicator,price,length,confirm,confLength)
+    [bullDiv,bearDiv]
+
+oscillatorsDivergence(bullDiv=0,bearDiv=0,slope=2.0) =>
+    bullOsc = 100.0
+    bullOsc := if barstate.isfirst
+        100.0
+    else
+        bullDiv > 0 ? 0   : math.min(bullOsc[1] * (bearDiv>0 ? 2 : 1) + slope, 100)
+    bearOsc = 0.0
+    bearOsc := if barstate.isfirst
+        0.0
+    else
+        bearDiv > 0 ? 100 : math.max(bearOsc[1] / (bullDiv>0 ? 2 : 1) - slope, 0  )
+    [bullOsc,bearOsc]
+        
+divergenceIndicator(bullOsc,bearOsc) =>
+    (bullOsc+bearOsc)/2
+
+chooseSrcDiv(option,wt,hac,rsi,stochRsi,rvi,tsi,mom,tds,mfi,cmf) =>
+    if option == 'WaveTrend'
+        wt
+    else if option == 'HA Count'
+        hac
+    else if option == 'RSI'
+        rsi
+    else if option == 'Stoch RSI'
+        stochRsi
+    else if option == 'RVI'
+        rvi
+    else if option == 'TSI'
+        tsi
+    else if option == 'Momentum'
+        mom
+    else if option == 'TD Sequential'
+        tds
+    else if option == 'MFI'
+        mfi
+    else if option == 'CMF'
+        cmf
+
+
+
+//######## INPUT
+//---- WaveTrend
+display_wt          = input.bool(true   , title="Display WaveTrend indicator ?"         , group="WaveTrend Settings", tooltip="WaveTrend Oscillator develop by LazyBear")
+display_wtDelta     = input.bool(true   , title="Display WaveTrend delta ?"             , group="WaveTrend Settings", tooltip="Represents the difference between the WaveTrend and its SMA")
+weigthWT            = input.float(1     , minval=0, step=0.1, title="Weigth WaveTrend"  , group="WaveTrend Settings", tooltip="Weight on the Risk indicator")
+length1WT           = input.int(9       , minval=1, title="Channel Length"              , group="WaveTrend Settings")
+length2WT           = input.int(12      , minval=1, title="Average Length"              , group="WaveTrend Settings")
+amplWT              = input.float(0.5   , title="WaveTrend Amplitude"                   , group="WaveTrend Settings")
+offsetWT            = input.int(50      , title="WaveTrend Offset"                      , group="WaveTrend Settings")
+
+[wt1,wt2]           = request.security(syminfo.tickerid, mtf, wtMethod(length1WT,length2WT,amplWT,offsetWT))
+wtDelta             = MaxMinNz((wt1 - wt2)*(amplWT*8) + offsetWT)
+
+// Plot
+colorWT1            = input.color(color.rgb(144,202,249,30) , title="WaveTrend color"                , group="WaveTrend Settings")
+colorWT2            = input.color(color.rgb(13, 71, 161,30) , title="WaveTrend MA color"             , group="WaveTrend Settings")
+colorDelta          = input.color(color.new(color.yellow,60), title="WaveTrend delta color"          , group="WaveTrend Settings")
+display_WTdivs      = input.bool(true                         , title="Display WaveTrend signals ?"    , group="WaveTrend Settings")
+colorWTBullDiv      = input.color(color.new(color.green ,30), title="WaveTrend Bull reversal color"  , group="WaveTrend Settings")
+colorWTBearDiv      = input.color(color.new(color.red   ,30), title="WaveTrend Bear reversal color"  , group="WaveTrend Settings")
+plot(display_input and display_wt ? wt1+offsetDisplay : na  , title="WaveTrend"  , color=colorWT1, linewidth = 1, histbase=50+offsetDisplay, style=plot.style_area)
+plot(display_input and display_wt ? wt2+offsetDisplay : na  , title="WaveTrendMA", color=colorWT2, linewidth = 1, histbase=50+offsetDisplay, style=plot.style_area)
+plot(display_input and display_wtDelta ? wtDelta+offsetDisplay : na, title="WaveTrend Delta"    , color=colorDelta, linewidth = 1, histbase=50+offsetDisplay, style=plot.style_area)
+plotchar(display_input and display_WTdivs and ta.cross(wt1,wt2) ? wt1[0]+offsetDisplay : na, title = 'WaveTrend Bull reversal signal', char='•', color = ta.crossover(wt1,wt2) ? colorWTBullDiv : colorWTBearDiv, location = location.absolute, size = size.tiny)
+
+
+//---- Heikin Ashi Count
+display_hac             = input.bool(true ,title="Display Heikin Ashi Count indicator ?"        , group="Heikin Ashi Count Settings")
+weigthHAC               = input.float(1, minval=0, step=0.1, title="Weigth HAC"                 , group="Heikin Ashi Count Settings", tooltip="Weight on the Risk indicator")
+lengthHAC               = input.float(defval=1.15, minval=1, step=0.01, title="Counting Length" , group="Heikin Ashi Count Settings")
+hac                     = request.security(syminfo.tickerid, mtf, haCountMethod(lengthHAC))
+
+// Plot
+colorHAC                = input.color(color.rgb(255,92,21,50), title="Heinkin Ashi Count color" , group="Heikin Ashi Count Settings")
+plot(display_input and display_hac ? hac+offsetDisplay : na, title="HAC", color=colorHAC, linewidth=1, histbase=(offsetDisplay+50), style=plot.style_area)
+
+
+//---- Aroon
+display_aroonUp     = input.bool(true ,title="Display AroonUp indicator ?"      , group="Aroon Settings")
+weigthAroonUp       = input.float(1, minval=0, step=0.1, title="Weigth AroonUp" , group="Aroon Settings", tooltip="Weight on the Risk indicator")
+lengthAroonUp       = input.int(14, minval=1, title="AroonUp Length"            , group="Aroon Settings")
+display_aroonDown   = input.bool(true ,title="Display AroonDown indicator ?"    , group="Aroon Settings", tooltip="Down adjusted to match the 0|100 with the bottom|top")
+weigthAroonDown     = input.float(1, minval=0, step=0.1,title="Weigth AroonDown", group="Aroon Settings", tooltip="Weight on the Risk indicator")
+lengthAroonDown     = input.int(14, minval=1, title="AroonDown Length"          , group="Aroon Settings")
+[aroonUp,aroonDown] = request.security(syminfo.tickerid, mtf, aroonMethod(lengthAroonUp,lengthAroonDown))
+
+// Plot
+colorAroonUp        = input.color(color.new(color.orange,50), title="AroonUp color"         , group="Aroon Settings")
+colorAroonDown      = input.color(color.new(color.blue,  50), title="AroonDown color"       , group="Aroon Settings")
+plot(display_input and display_aroonUp    ? aroonUp  +offsetDisplay : na, title="AroonUp"   , color=colorAroonUp    , linewidth=1, histbase=50+offsetDisplay, style=plot.style_line)
+plot(display_input and display_aroonDown  ? aroonDown+offsetDisplay : na, title="AroonDown" , color=colorAroonDown  , linewidth=1, histbase=50+offsetDisplay, style=plot.style_line)
+
+
+//---- Schaff Trend Cycle
+display_stc     = input.bool(true,title="Display Schaff Trend Cycle indicator ?"        , group="Schaff Trend Cycle Settings")
+weigthSTC       = input.float(1, minval=0, step=0.1, title="Weigth STC"                 , group="Schaff Trend Cycle Settings", tooltip="Weight on the Risk indicator")
+lengthSTC       = input.int(10, minval=1, title="Schaff Trend Cycle Length"             , group="Schaff Trend Cycle Settings")
+fastLengthSTC   = input.int(23, minval=1, title="Schaff Trend Cycle fast Length"        , group="Schaff Trend Cycle Settings")
+slowLengthSTC   = input.int(50, minval=1, title="Schaff Trend Cycle slow Length"        , group="Schaff Trend Cycle Settings")
+stc             = request.security(syminfo.tickerid, mtf, stcMethod(lengthSTC,fastLengthSTC,slowLengthSTC))
+
+// Plot
+colorSTC        = input.color(color.rgb(128,0,128,0), title="Schaff Trend Cycle color"  , group="Schaff Trend Cycle Settings")
+plot(display_input and display_stc ? stc+offsetDisplay : na, title="STC", color=colorSTC, linewidth=2, histbase=50+offsetDisplay)
+
+
+//---- RSI
+display_rsi     = input.bool(true , title="Display RSI indicator ?"     , group="Relative Strength Index Settings")
+weigthRSI       = input.float(1, minval=0, step=0.1, title="Weigth RSI" , group="Relative Strength Index Settings", tooltip="Weight on the Risk indicator")
+lengthRSI       = input.int(14, minval=1, title="RSI Length"            , group="Relative Strength Index Settings")
+rsi             = request.security(syminfo.tickerid, mtf, ta.rsi(source,lengthRSI))
+
+// Plot
+colorRSI        = input.color(color.rgb(255,127,0,20), title="RSI color", group="Relative Strength Index Settings")
+plot(display_input and display_rsi ? rsi+offsetDisplay : na, title="RSI", color=colorRSI, linewidth=2, histbase=50+offsetDisplay)
+
+
+//---- Stochastic RSI
+display_stoch   = input.bool(true  , title="Display Stochastic indicators ?"        , group="Stochastic RSI Settings")
+weigthStoch     = input.float(1, minval=0, step=0.1, title="Weigth Stochastic RSI"  , group="Stochastic RSI Settings", tooltip="Weight on the Risk indicator")
+display_kdDelta = input.bool(true , title="Display delta between K and D ?"         , group="Stochastic RSI Settings", tooltip="Represents the difference between the stochastic and its SMA")
+smoothK         = input.int(4, minval=1, title="K Length"                           , group="Stochastic RSI Settings")
+smoothD         = input.int(4, minval=1, title="D Length"                           , group="Stochastic RSI Settings")
+[k,d,kdDelta]   = request.security(syminfo.tickerid, mtf, stochasticRsiMethod(rsi,lengthRSI,smoothK,smoothD))
+
+// Plot
+colorStochK     = input.color(color.rgb(214,253,22 ,70), title="Stochastic K color" , group="Stochastic RSI Settings")
+colorStochD     = input.color(color.rgb(255,162,18 ,70), title="Stochastic D color" , group="Stochastic RSI Settings")
+colorFillKD     = k >= d ? colorStochK : colorStochD
+stochKplot      = plot(display_input and display_stoch ? k+offsetDisplay : na, title="K", color=colorStochK, linewidth=1, histbase=50+offsetDisplay)
+stochDplot      = plot(display_input and display_stoch ? d+offsetDisplay : na, title="D", color=colorStochD, linewidth=1, histbase=50+offsetDisplay)
+//fill(stochKplot, stochDplot, title='KD Fill', color= display_stoch ? colorFillKD : color.new(color.black,100))
+plot(display_input and display_kdDelta  ? kdDelta+offsetDisplay : na, title="KDDelta"   , color=colorFillKD, linewidth=1, histbase=50+offsetDisplay, style=plot.style_area)
+
+
+//---- Relative Volatility Index
+display_rvi     = input.bool(true , title="Display RVI indicator ?"         , group="Relative Volatility Index Settings")
+weigthRVI       = input.float(1, minval=0, step=0.1, title="Weigth RVI"     , group="Relative Volatility Index Settings", tooltip="Weight on the Risk indicator")
+lengthStDevRVI  = input.int(10, minval=1, title="RVI Length price deviation", group="Relative Volatility Index Settings")
+lengthEMARVI    = input.int(14, minval=1, title="RVI Length EMA"            , group="Relative Volatility Index Settings")
+rvi             = request.security(syminfo.tickerid, mtf, rviMethod(lengthStDevRVI,lengthEMARVI))
+
+// Plot
+colorRVI        = input.color(color.rgb(126,87 ,194,0), title="RVI color"   , group="Relative Volatility Index Settings")
+plot(display_input and display_rvi ? rvi+offsetDisplay : na, title="RVI", color=colorRVI, linewidth=1, histbase=50+offsetDisplay)
+
+
+//---- True Strength Indicator
+display_tsi     = input.bool(true       , title="Display TSI indicator ?"   , group="True Strength Indicator Settings")
+weigthTSI       = input.float(1,minval=0, step=0.1, title="Weigth TSI"      , group="True Strength Indicator Settings", tooltip="Weight on the Risk indicator")
+longTSI         = input.int(25, minval=1, title="TSI Long Length"           , group="True Strength Indicator Settings")
+shortTSI        = input.int(13, minval=1, title="TSI Short Length"          , group="True Strength Indicator Settings")
+amplLTSI        = input.float(80        , title="TSI Amplitude"             , group="True Strength Indicator Settings")
+offsetTSI       = input.int(50          , title="TSI Offset"                , group="True Strength Indicator Settings")
+tsi             = request.security(syminfo.tickerid, mtf, tsiMethod(longTSI,shortTSI,amplLTSI,offsetTSI))
+
+// Plot
+colorTSI        = input.color(color.rgb(87 ,147,255,0), title="TSI color"   , group="True Strength Indicator Settings")
+plot(display_input and display_tsi ? tsi+offsetDisplay : na, title="TSI", color=colorTSI, linewidth=1, histbase=50+offsetDisplay)
+
+
+//---- Bollinger Bands
+display_bb      = input.bool(true , title="Display BB ratio indicator ?"                            , group="Bollinger Bands Settings")
+weigthBB        = input.float( 1  , minval=0  , step=0.1, title="Weigth Bollinger Bands"            , group="Bollinger Bands Settings", tooltip="Weight on the Risk indicator")
+lengthBB        = input.int(   20 , minval=1  , step=1  , title="Bollinger Period Length"           , group="Bollinger Bands Settings")
+multBB          = input.float( 3.0, minval=0.1, step=0.1, title="Bollinger Bands Standard Deviation", group="Bollinger Bands Settings")
+ratioBB         = request.security(syminfo.tickerid, mtf, bbMethod(lengthBB,multBB))
+
+// Plot
+colorBB         = input.color(color.rgb(62,195,137,10)  , title="BB ratio color"                    , group="Bollinger Bands Settings")
+plot(display_input and display_bb ? ratioBB+offsetDisplay : na, title="BB", color=colorBB, linewidth=1, histbase=50+offsetDisplay, style=plot.style_stepline)
+
+
+//---- Williams Percent Range
+display_wr      = input.bool(true , title="Display Williams Percent Range indicator ?"  , group="Williams %R Settings", tooltip="Similar to a range in the Donchian channel")
+weigthWR        = input.float(1, minval=0, step=0.1, title="Weigth Williams %R"         , group="Williams %R Settings", tooltip="Weight on the Risk indicator")
+lengthWR        = input.int(21 , minval=1, title="Williams %R Length"                   , group="Williams %R Settings", tooltip="Length of the measured range, usually 14 or 21")
+wr              = request.security(syminfo.tickerid, mtf, williamsRangeMethod(lengthWR))
+
+// Plot
+colorWR         = input.color(color.rgb(38 ,166,154,10) , title="Williams %R color"     , group="Williams %R Settings")
+plot(display_input and display_wr ? wr+offsetDisplay : na, title="W%R", color=colorWR, linewidth=1, histbase=50+offsetDisplay, style=plot.style_stepline)
+
+
+//---- Momentum %
+display_mom     = input.bool(true       , title="Display Momentum indicator ?"  , group="Momentum % Settings")
+weigthMom       = input.float(1, minval=0, step=0.1, title="Weigth Momentum"    , group="Momentum % Settings", tooltip="Weight on the Risk indicator")
+lengthMom       = input.int(10, minval=1, title="Mom Length"                    , group="Momentum % Settings")
+amplMom         = input.float(100       , title="Momentum Amplitude"            , group="Momentum % Settings", tooltip="must be defined to fit the market volatility")
+mom             = request.security(syminfo.tickerid, mtf, momentumMethod(lengthMom,amplMom))
+
+// Plot
+colorMom        = input.color(color.rgb(210,180,0 ,50), title="Mom color"       , group="Momentum % Settings")
+plot(display_input and display_mom ? mom+offsetDisplay : na, title="Mom", color=colorMom, linewidth=1, histbase=50+offsetDisplay, style=plot.style_columns)
+
+
+//---- TD Sequential
+display_TDS             = input.bool(true , title="Display TD Sequential indicator ?"       , group="TD Sequential Settings", tooltip="The TD Sequential indicator is based on trend momentum, basically it counts the number of bars that confirm the trend")
+display_TDS_Labels      = input.bool(false, title="Display TD Sequential labels ?"          , group="TD Sequential Settings", tooltip="Real value of TD Sequential")
+weigthTDS               = input.float(1 , minval=0, step=0.1, title="Weigth TD Sequential"  , group="TD Sequential Settings", tooltip="Weight on the Risk indicator")
+lengthTDS               = input.int(4   , minval=1, title="TD Sequential Length"            , group="TD Sequential Settings", tooltip="Length between the source bars compared")
+maxCountTDS             = input.int(13  , minval=1, title="TD Sequential maximum count"     , group="TD Sequential Settings", tooltip="Maximum bar count, usually 9 or 13")
+[TDSRange,TDSUp,TDSDown]= request.security(syminfo.tickerid, mtf, TDSMethod(lengthTDS,maxCountTDS))
+
+// Plot
+colorTDS        = input.color(color.rgb(200,142,41 ,50), title="TD Sequential color", group="TD Sequential Settings")
+plot(display_input and display_TDS ? TDSRange+offsetDisplay : na, title="TDS", color=colorTDS, linewidth=1, histbase=50+offsetDisplay, style=plot.style_columns)
+if display_input and display_TDS_Labels and TDSRange > 50
+    label.new(x=bar_index, y=TDSRange+offsetDisplay, color=color.rgb(0,0,0,100), text=str.tostring(TDSUp)   , textcolor=color.white, style=label.style_label_center, size=size.tiny)
+else if display_input and display_TDS_Labels and TDSRange < 50
+    label.new(x=bar_index, y=TDSRange+offsetDisplay, color=color.rgb(0,0,0,100), text=str.tostring(-TDSDown), textcolor=color.white, style=label.style_label_center, size=size.tiny)    
+
+
+//---- Money Flow Index
+display_mfi     = input.bool(true , title="Display Money Flow Index indicator ?", group="Money Flow Index Settings")
+weigthMFI       = input.float(1, minval=0, step=0.1, title="Weigth MFI"         , group="Money Flow Index Settings", tooltip="Weight on the Risk indicator")
+lengthMFI       = input.int(14, minval=1, maxval=2000  , title="MFI Length"     , group="Money Flow Index Settings")
+mfi             = request.security(syminfo.tickerid, mtf, nz(ta.mfi(hlc3, lengthMFI),50))
+
+// Plot
+colorMFI        = input.color(color.new(color.green,0) , title="MFI color"      , group="Money Flow Index Settings")
+plot(display_input and display_mfi ? mfi+offsetDisplay : na, title="MFI", color=colorMFI, linewidth=1, histbase=50+offsetDisplay)
+
+
+//---- Chaikin Money Flow
+display_cmf     = input.bool(true   , title="Display Chaikin Money Flow indicator ?"            , group="Chaikin Money Flow Settings")
+weigthCMF       = input.float(1     , minval=0, step=0.1, title="Weigth CMF"                    , group="Chaikin Money Flow Settings", tooltip="Weight on the Risk indicator")
+lengthCMF       = input.int(21      , minval=1, maxval=1000, title="Chaikin Money Flow Length"  , group="Chaikin Money Flow Settings")
+amplCMF         = input.float(150   , title="Chaikin Money Flow Amplitude"                      , group="Chaikin Money Flow Settings")
+offsetCMF       = input.int(50      , title="Chaikin Money Flow Offset"                         , group="Chaikin Money Flow Settings")
+cmf             = request.security(syminfo.tickerid, mtf, cmfMethod(lengthCMF,amplCMF,offsetCMF))
+
+// Plot
+colorCMF        = input.color(color.new(color.lime,0), title="Chaikin Money Flow color"         , group="Chaikin Money Flow Settings")
+plot(display_input and display_cmf ? cmf+offsetDisplay : na, title="CMF", color=colorCMF, linewidth=1, histbase=50+offsetDisplay)
+
+
+//---- Distance short moving average
+display_DistanceShortSMA= input.bool(false,title="Display distance from short moving average ?" , group="Distance short MA Settings")
+weigthSSMA              = input.float(1, minval=0, step=0.1, title="Weigth short moving average", group="Distance short MA Settings", tooltip="Weight on the Risk indicator")
+lengthSSMA              = input.int(  7  , title="Short MA Length", minval=1                    , group="Distance short MA Settings")
+amplSSMA                = input.float(300, title="Short MA Amplitude"                           , group="Distance short MA Settings")
+offsetSSMA              = input.int(  50 , title="Short MA Offset"                              , group="Distance short MA Settings")
+distance_close_shortsma = request.security(syminfo.tickerid, mtf, distanceSMA(lengthSSMA,amplSSMA,offsetSSMA))
+
+// Plot
+colorDistanceShortSMA   = input.color(color.new(color.aqua,20), title="Distance short MA color"  , group="Distance short MA Settings")
+plot(display_input and display_DistanceShortSMA ? distance_close_shortsma+offsetDisplay : na, title='Distance from short MA', color=colorDistanceShortSMA, linewidth=1, histbase=50+offsetDisplay)
+
+
+//---- Distance long moving average
+display_DistanceLongSMA = input.bool(false,title="Display distance from long moving average ?"  , group="Distance long MA Settings")
+weigthLSMA              = input.float(1, minval=0, step=0.1, title="Weigth long moving average" , group="Distance long MA Settings", tooltip="Weight on the Risk indicator")
+lengthLSMA              = input.int(  50 , title="Long MA Length", minval=1                     , group="Distance long MA Settings")
+amplLSMA                = input.float(100, title="Long MA Amplitude"                            , group="Distance long MA Settings")
+offsetLSMA              = input.int(  50 , title="Long MA Offset"                               , group="Distance long MA Settings")
+distance_close_longsma  = request.security(syminfo.tickerid, mtf, distanceSMA(lengthLSMA,amplLSMA,offsetLSMA))
+
+// Plot
+colorDistanceLongSMA    = input.color(color.new(color.aqua,20), title="Distance long MA color"  , group="Distance long MA Settings")
+plot(display_input and display_DistanceLongSMA ? distance_close_longsma+offsetDisplay : na, title='Distance from long MA', color=colorDistanceLongSMA , linewidth=1, histbase=50+offsetDisplay)
+
+
+//---- Oscillator Divergence
+display_OscDiv  = input.bool(true                               , title="Display oscillator divergence indicator ?"     , group="Oscillator Divergence Settings")
+weigthOscDiv    = input.float(1, minval=0, step=0.1             , title="Weigth oscillator divergence"                  , group="Oscillator Divergence Settings", tooltip="Weight on the Risk indicator")
+confirmedDiv    = input.bool(true                               , title="Wait confirmation for signal ?"                , group="Oscillator Divergence Settings", tooltip="Authorize repainting (on the signals, not on the oscillator)")
+confLengthDiv   = input.int(1, minval=1                         , title="Number of bars for divergence confirmation"    , group="Oscillator Divergence Settings")
+srcDivOption    = input.string(defval='HA Count'                , title='Indicator to look for divergence'              , group='Oscillator Divergence Settings', options=['WaveTrend','HA Count','RSI','Stoch RSI','RVI','TSI','Momentum','TD Sequential','MFI','CMF'])
+slopeDiv        = input.float(defval=4.0 , minval=0.1, step=0.1 , title="Slope for oscillator divergence"               , group="Oscillator Divergence Settings")
+lengthDiv       = input.float(defval=100 , minval=3  , step=1   , title="Number of bars to look for divergences"        , group="Oscillator Divergence Settings")
+
+srcDiv          = chooseSrcDiv(srcDivOption,wt1,hac,rsi,k,rvi,tsi,mom,TDSRange,mfi,cmf)
+[bullDiv,bearDiv]   = request.security(syminfo.tickerid, mtf, findDivergences(srcDiv,close,lengthDiv,confirmedDiv,confLengthDiv))
+[bullOsc,bearOsc]   = oscillatorsDivergence(bullDiv,bearDiv,slopeDiv)
+oscDiv              = divergenceIndicator(bullOsc,bearOsc)
+
+// Plot
+confirmationDivOffset = confirmedDiv ? confLengthDiv : 0
+locDivOption    = input.string(defval='Absolute'        , title='Location of the divergence signals', options=['Absolute','Value'], group='Oscillator Divergence Settings')
+display_divs    = input.bool(true                       , title="Display divergence signals ?"                                    , group="Oscillator Divergence Settings")
+display_divline = input.bool(true                       , title="Display divergence lines ?"                                      , group="Oscillator Divergence Settings")
+colorBullDiv    = input.color(color.new(color.green ,30), title="Bull Divergence color"         , group="Oscillator Divergence Settings")
+colorBearDiv    = input.color(color.new(color.red   ,30), title="Bear Divergence color"         , group="Oscillator Divergence Settings")
+colorOscDiv     = input.color(color.new(color.silver,25), title="Oscillator divergence color"   , group="Oscillator Divergence Settings")
+plotchar(display_input and display_divs and bullDiv ? (locDivOption == 'Value' ? srcDiv[confirmationDivOffset] : 0  )+offsetDisplay : na, title = 'Bull Divergence signal', char='•', color = colorBullDiv, location = location.absolute, size = size.small, offset = -confirmationDivOffset)
+plotchar(display_input and display_divs and bearDiv ? (locDivOption == 'Value' ? srcDiv[confirmationDivOffset] : 100)+offsetDisplay : na, title = 'Bear Divergence signal', char='•', color = colorBearDiv, location = location.absolute, size = size.small, offset = -confirmationDivOffset)
+plot(display_input and display_OscDiv ? oscDiv+offsetDisplay : na, title="OscDiv", color=colorOscDiv, linewidth=1, histbase=50+offsetDisplay, style=plot.style_line)
+
+if display_input and display_divline and bullDiv>0
+    line.new(x1=bar_index-bullDiv, y1=math.round(srcDiv[bullDiv])+offsetDisplay, x2=bar_index-confirmationDivOffset, y2=math.round(srcDiv[confirmationDivOffset])+offsetDisplay, color=colorBullDiv, width = 1)
+if display_input and display_divline and bearDiv>0
+    line.new(x1=bar_index-bearDiv, y1=math.round(srcDiv[bearDiv])+offsetDisplay, x2=bar_index-confirmationDivOffset, y2=math.round(srcDiv[confirmationDivOffset])+offsetDisplay, color=colorBearDiv, width = 1)
+
+
+//######## OUTPUT
+centeredReducedDisplay(choice,src,ampl,offset) =>
+    if choice=='Original'
+        src
+    else
+        src * ampl + offset
+
+// Variable
+avgIndicators() =>
+    sumIndicators       = (display_wt ? wt1*weigthWT : 0) + (display_DistanceShortSMA ? distance_close_shortsma*weigthSSMA : 0) + (display_DistanceLongSMA ? distance_close_longsma*weigthLSMA : 0) + (display_wr ? wr*weigthWR : 0) + (display_mom ? mom*weigthMom : 0) + (display_rsi ? rsi*weigthRSI : 0) + (display_stoch ? ((k+d)/2)*weigthStoch : 0) + (display_rvi ? rvi*weigthRVI : 0) + (display_tsi ? tsi*weigthTSI : 0) + (display_hac ? hac*weigthHAC : 0) + (display_bb ? ratioBB*weigthBB : 0) + (display_stc ? stc*weigthSTC : 0) + (display_aroonUp ? aroonUp*weigthAroonUp : 0) + (display_aroonDown ? aroonDown*weigthAroonDown : 0) + (display_mfi ? mfi*weigthMFI : 0) + (display_cmf ? cmf*weigthCMF : 0) + (display_TDS ? TDSRange*weigthTDS : 0) + (display_OscDiv ? oscDiv*weigthOscDiv : 0)
+    nbIndicators        = (display_wt ? weigthWT     : 0) + (display_DistanceShortSMA ? weigthSSMA                         : 0) + (display_DistanceLongSMA ? weigthLSMA                        : 0) + (display_wr ? weigthWR    : 0) + (display_mom ? weigthMom     : 0) + (display_rsi ? weigthRSI     : 0) + (display_stoch ? weigthStoch           : 0) + (display_rvi ? weigthRVI     : 0) + (display_tsi ? weigthTSI     : 0) + (display_hac ? weigthHAC     : 0) + (display_bb ? weigthBB         : 0) + (display_stc ? weigthSTC     : 0) + (display_aroonUp ? weigthAroonUp         : 0) + (display_aroonDown ? weigthAroonDown           : 0) + (display_mfi ? weigthMFI     : 0) + (display_cmf ? weigthCMF     : 0) + (display_TDS ? weigthTDS          : 0) + (display_OscDiv ? weigthOscDiv        : 0)
+    sumIndicators / nbIndicators
+
+pc1Indicator() =>
+    sumIndicators       = (display_wt ? wt1*weigthWT*0.28057677 : 0) + (display_wt ? wt2*weigthWT*0.26604956 : 0) + (display_wt ? wtDelta*weigthWT*0.09335345 : 0) + (display_hac ? hac*weigthHAC*0.27042294 : 0) + (display_aroonUp ? aroonUp*weigthAroonUp*0.2242386 : 0) + (display_aroonDown ? aroonDown*weigthAroonDown*0.21645523 : 0) + (display_stc ? stc*weigthSTC*0.22345921 : 0) + (display_rsi ? rsi*weigthRSI*0.27158859 : 0) + (display_stoch ? k*weigthStoch*0.21072071 : 0) + (display_stoch ? d*weigthStoch*0.20982997 : 0) + (display_stoch ? kdDelta*weigthStoch*0.0288154 : 0) + (display_rvi ? rvi*weigthRVI*0.21184407 : 0) + (display_tsi ? tsi*weigthTSI*0.22443242 : 0) + (display_bb ? ratioBB*weigthBB*0.27157343 : 0) + (display_wr ? wr*weigthWR*0.26881983 : 0) + (display_mom ? mom*weigthMom*0.15357979 : 0) + (display_TDS ? TDSRange*weigthTDS*0.21931816 : 0) + (display_mfi ? mfi*weigthMFI*0.16602267 : 0) + (display_cmf ? cmf*weigthCMF*0.17098777 : 0) + (display_OscDiv ? oscDiv*weigthOscDiv*0.06303232 : 0)
+    nbIndicators        = (display_wt ? weigthWT                : 0) + (display_wt ? weigthWT                : 0) + (display_wt ? weigthWT                    : 0) + (display_hac ? weigthHAC                : 0) + (display_aroonUp ? weigthAroonUp                   : 0) + (display_aroonDown ? weigthAroonDown                      : 0) + (display_stc ? weigthSTC                : 0) + (display_rsi ? weigthRSI                : 0) + (display_stoch ? weigthStoch              : 0) + (display_stoch ? weigthStoch              : 0) + (display_stoch ? weigthStoch                   : 0) + (display_rvi ? weigthRVI                : 0) + (display_tsi ? weigthTSI                : 0) + (display_bb ? weigthBB                    : 0) + (display_wr ? weigthWR               : 0) + (display_mom ? weigthMom                : 0) + (display_TDS ? weigthTDS                     : 0) + (display_mfi ? weigthMFI                : 0) + (display_cmf ? weigthCMF                : 0) + (display_OscDiv ? weigthOscDiv                   : 0)
+    centeredReducedDisplay(ncPCA,(sumIndicators/nbIndicators),5.7,-8)
+
+pc2Indicator() =>
+    sumIndicators       = (display_wt ? wt1*weigthWT*-0.11182425 : 0) + (display_wt ? wt2*weigthWT*-0.20781823 : 0) + (display_wt ? wtDelta*weigthWT*0.4838739 : 0) + (display_hac ? hac*weigthHAC*-0.001317 : 0) + (display_aroonUp ? aroonUp*weigthAroonUp*-0.1147146 : 0) + (display_aroonDown ? aroonDown*weigthAroonDown*-0.08458132 : 0) + (display_stc ? stc*weigthSTC*0.17033607 : 0) + (display_rsi ? rsi*weigthRSI*-0.06229966 : 0) + (display_stoch ? k*weigthStoch*0.30367343 : 0) + (display_stoch ? d*weigthStoch*0.11936626 : 0) + (display_stoch ? kdDelta*weigthStoch*0.46254792 : 0) + (display_rvi ? rvi*weigthRVI*0.1004253 : 0) + (display_tsi ? tsi*weigthTSI*-0.3034206 : 0) + (display_bb ? ratioBB*weigthBB*0.10333061 : 0) + (display_wr ? wr*weigthWR*0.02885504 : 0) + (display_mom ? mom*weigthMom*0.00359513 : 0) + (display_TDS ? TDSRange*weigthTDS*0.21002577 : 0) + (display_mfi ? mfi*weigthMFI*-0.05906281 : 0) + (display_cmf ? cmf*weigthCMF*-0.18905868 : 0) + (display_OscDiv ? oscDiv*weigthOscDiv*-0.37262208 : 0)
+    nbIndicators        = (display_wt ? weigthWT                 : 0) + (display_wt ? weigthWT                 : 0) + (display_wt ? weigthWT                   : 0) + (display_hac ? weigthHAC               : 0) + (display_aroonUp ? weigthAroonUp                    : 0) + (display_aroonDown ? weigthAroonDown                       : 0) + (display_stc ? weigthSTC                : 0) + (display_rsi ? weigthRSI                 : 0) + (display_stoch ? weigthStoch              : 0) + (display_stoch ? weigthStoch              : 0) + (display_stoch ? weigthStoch                    : 0) + (display_rvi ? weigthRVI               : 0) + (display_tsi ? weigthTSI                : 0) + (display_bb ? weigthBB                    : 0) + (display_wr ? weigthWR               : 0) + (display_mom ? weigthMom                : 0) + (display_TDS ? weigthTDS                     : 0) + (display_mfi ? weigthMFI                 : 0) + (display_cmf ? weigthCMF                 : 0) + (display_OscDiv ? weigthOscDiv                    : 0)
+    centeredReducedDisplay(ncPCA,(sumIndicators/nbIndicators),10,40)
+
+pc3Indicator() =>
+    sumIndicators       = (display_wt ? wt1*weigthWT*0.00237309 : 0) + (display_wt ? wt2*weigthWT*0.05854934 : 0) + (display_wt ? wtDelta*weigthWT*-0.28723163 : 0) + (display_hac ? hac*weigthHAC*-0.01040362 : 0) + (display_aroonUp ? aroonUp*weigthAroonUp*0.12899243 : 0) + (display_aroonDown ? aroonDown*weigthAroonDown*0.17181989 : 0) + (display_stc ? stc*weigthSTC*0.26369398 : 0) + (display_rsi ? rsi*weigthRSI*-0.20109388 : 0) + (display_stoch ? k*weigthStoch*0.29001052 : 0) + (display_stoch ? d*weigthStoch*0.48443807 : 0) + (display_stoch ? kdDelta*weigthStoch*-0.41041703 : 0) + (display_rvi ? rvi*weigthRVI*-0.20322031 : 0) + (display_tsi ? tsi*weigthTSI*-0.19336318 : 0) + (display_bb ? ratioBB*weigthBB*-0.10276601 : 0) + (display_wr ? wr*weigthWR*-0.10545847 : 0) + (display_mom ? mom*weigthMom*-0.00559493 : 0) + (display_TDS ? TDSRange*weigthTDS*-0.07692795 : 0) + (display_mfi ? mfi*weigthMFI*0.0611499 : 0) + (display_cmf ? cmf*weigthCMF*-0.25686345 : 0) + (display_OscDiv ? oscDiv*weigthOscDiv*-0.30690315 : 0)
+    nbIndicators        = (display_wt ? weigthWT                : 0) + (display_wt ? weigthWT                : 0) + (display_wt ? weigthWT                     : 0) + (display_hac ? weigthHAC                 : 0) + (display_aroonUp ? weigthAroonUp                    : 0) + (display_aroonDown ? weigthAroonDown                      : 0) + (display_stc ? weigthSTC                : 0) + (display_rsi ? weigthRSI                 : 0) + (display_stoch ? weigthStoch              : 0) + (display_stoch ? weigthStoch              : 0) + (display_stoch ? weigthStoch                     : 0) + (display_rvi ? weigthRVI                 : 0) + (display_tsi ? weigthTSI                 : 0) + (display_bb ? weigthBB                     : 0) + (display_wr ? weigthWR                : 0) + (display_mom ? weigthMom                 : 0) + (display_TDS ? weigthTDS                      : 0) + (display_mfi ? weigthMFI               : 0) + (display_cmf ? weigthCMF                 : 0) + (display_OscDiv ? weigthOscDiv                    : 0)
+    centeredReducedDisplay(ncPCA,(sumIndicators/nbIndicators),11,70)
+
+pc4Indicator() =>
+    sumIndicators       = (display_wt ? wt1*weigthWT*-0.04892113 : 0) + (display_wt ? wt2*weigthWT*-0.03916461 : 0) + (display_wt ? wtDelta*weigthWT*-0.05407767 : 0) + (display_hac ? hac*weigthHAC*-0.02241438 : 0) + (display_aroonUp ? aroonUp*weigthAroonUp*-0.12627281 : 0) + (display_aroonDown ? aroonDown*weigthAroonDown*-0.06693908 : 0) + (display_stc ? stc*weigthSTC*-0.1231245 : 0) + (display_rsi ? rsi*weigthRSI*0.04708137 : 0) + (display_stoch ? k*weigthStoch*-0.11330626 : 0) + (display_stoch ? d*weigthStoch*-0.08116231 : 0) + (display_stoch ? kdDelta*weigthStoch*-0.0883354 : 0) + (display_rvi ? rvi*weigthRVI*0.11037185 : 0) + (display_tsi ? tsi*weigthTSI*0.05410202 : 0) + (display_bb ? ratioBB*weigthBB*-0.0521927 : 0) + (display_wr ? wr*weigthWR*-0.13628793 : 0) + (display_mom ? mom*weigthMom*0.83241525 : 0) + (display_TDS ? TDSRange*weigthTDS*0.03529496 : 0) + (display_mfi ? mfi*weigthMFI*0.28100209 : 0) + (display_cmf ? cmf*weigthCMF*0.02892046 : 0) + (display_OscDiv ? oscDiv*weigthOscDiv*-0.33888006 : 0)
+    nbIndicators        = (display_wt ? weigthWT                 : 0) + (display_wt ? weigthWT                 : 0) + (display_wt ? weigthWT                     : 0) + (display_hac ? weigthHAC                 : 0) + (display_aroonUp ? weigthAroonUp                     : 0) + (display_aroonDown ? weigthAroonDown                       : 0) + (display_stc ? weigthSTC                : 0) + (display_rsi ? weigthRSI                : 0) + (display_stoch ? weigthStoch               : 0) + (display_stoch ? weigthStoch               : 0) + (display_stoch ? weigthStoch                    : 0) + (display_rvi ? weigthRVI                : 0) + (display_tsi ? weigthTSI                : 0) + (display_bb ? weigthBB                    : 0) + (display_wr ? weigthWR                : 0) + (display_mom ? weigthMom                : 0) + (display_TDS ? weigthTDS                     : 0) + (display_mfi ? weigthMFI                : 0) + (display_cmf ? weigthCMF                : 0) + (display_OscDiv ? weigthOscDiv                    : 0)
+    centeredReducedDisplay(ncPCA,(sumIndicators/nbIndicators),22,45)
+
+   
+// explained_variance_ratio_ : 0.55540809 0.13021972 0.07303142 0.03760925
+// explained_variance_ : 11.6639671   2.73470717  1.53371209  0.7898212
+   
+methodRiskIndicator(method) =>
+    if method == 'Average'
+        avgIndicators()
+    else if method == 'PC1'
+        pc1Indicator()
+    else if method == 'PC2'
+        pc2Indicator()
+    else if method == 'PC3'
+        pc3Indicator()
+    else if method == 'PC4'
+        pc4Indicator()
+    else
+        avgIndicators()
+
+//---- Risk Indicator
+avgIndicator        = avgIndicators()
+pc1Indicator        = pc1Indicator()
+pc2Indicator        = pc2Indicator()
+pc3Indicator        = pc3Indicator()
+pc4Indicator        = pc4Indicator()
+
+display_AvgRisk     = input.bool(false,title="Display Average Indicator ?"              , group="Risk Settings", tooltip="It is a synthetic output indicator that simply averages all the input indicators you have selected")
+colorAvgRisk        = input.color(color.new(color.white ,30), title="Average risk color", group="Risk Settings")
+display_PC1         = input.bool(false,title="Display PC1 Indicator ?"                  , group="Risk Settings", tooltip="This indicator is calculated according to the PC1 from the PCA statistical method that analyzes each indicator input")
+colorPC1            = input.color(color.new(color.red   ,30), title="PC1 color"         , group="Risk Settings")
+display_PC2         = input.bool(false,title="Display PC2 Indicator ?"                  , group="Risk Settings", tooltip="This indicator is calculated according to the PC2 from the PCA statistical method that analyzes each indicator input")
+colorPC2            = input.color(color.new(color.blue  ,30), title="PC2 color"         , group="Risk Settings")
+display_PC3         = input.bool(false,title="Display PC3 Indicator ?"                  , group="Risk Settings", tooltip="This indicator is calculated according to the PC3 from the PCA statistical method that analyzes each indicator input")
+colorPC3            = input.color(color.new(color.green ,30), title="PC3 color"         , group="Risk Settings")
+display_PC4         = input.bool(false,title="Display PC4 Indicator ?"                  , group="Risk Settings", tooltip="This indicator is calculated according to the PC4 from the PCA statistical method that analyzes each indicator input")
+colorPC4            = input.color(color.new(color.yellow,30), title="PC4 color"         , group="Risk Settings")
+display_Risk        = input.bool(true, title="Display Risk Indicator ?"                 , group="Risk Settings", tooltip="This indicator can be the output indicator you choose and display this one with variable color")
+methodRI            = input.string('PC1', title='Which method to use to define Risk Indicator ?', options=['Average','PC1','PC2','PC3','PC4'], group='Risk Settings')
+barcolor_Risk       = input.bool(true, title="Display barcolor with Risk indicator ?"   , group="Risk Settings")
+colorOption         = input.string(defval='Gradient', title='Method for displaying risk colors' , options=['Gradient','Absolute','Uniform']  , group='Risk Settings')
+
+riskRatio           = methodRiskIndicator(methodRI)
+
+levelRiskSafe       = input.int(10, minval=0, maxval=100, title="Level risk safe"       , group="Risk Settings")
+colorRiskSafe       = input.color(color.rgb(0,0,255,0)  , title="Risk safe color"       , group="Risk Settings")
+levelRiskOk         = input.int(40, minval=0, maxval=100, title="Level risk ok"         , group="Risk Settings")
+colorRiskOk         = input.color(color.rgb(0,255,0,0)  , title="Risk ok color"         , group="Risk Settings")
+levelRiskWarn       = input.int(60, minval=0, maxval=100, title="Level risk warn"       , group="Risk Settings")
+colorRiskWarn       = input.color(color.rgb(255,255,0,0), title="Risk warning color"    , group="Risk Settings")
+levelRiskDanger     = input.int(90, minval=0, maxval=100, title="Level risk danger"     , group="Risk Settings")
+colorRiskDanger     = input.color(color.rgb(255,0,0,0)  , title="Risk danger color"     , group="Risk Settings")
+
+colorRisk = if colorOption == 'Gradient'
+    riskRatio > levelRiskOk ? riskRatio > levelRiskWarn ? color.from_gradient(riskRatio, levelRiskWarn, levelRiskDanger, colorRiskWarn, colorRiskDanger) : color.from_gradient(riskRatio, levelRiskOk, levelRiskWarn, colorRiskOk, colorRiskWarn) : color.from_gradient(riskRatio, levelRiskSafe, levelRiskOk, colorRiskSafe, colorRiskOk)
+else if colorOption == 'Absolute'
+    riskRatio > levelRiskOk ? riskRatio > levelRiskWarn ? riskRatio > levelRiskDanger ? colorRiskDanger : colorRiskWarn : colorRiskOk : colorRiskSafe
+else
+    colorRiskOk
+
+// Plot
+band1               = hline(display_input   ? offsetDisplay : 0 , color=color.gray, linestyle=hline.style_solid)
+band0               = hline(0                                   , color=color.gray, linestyle=hline.style_solid)
+bandMinus1          = hline(display_output  ? 100 : 0           , color=color.gray, linestyle=hline.style_solid)
+plot(display_output and display_PC4     ? pc4Indicator  : na, title="PC4 Indicator"     , color=colorPC4    , linewidth = 2, histbase=50, style=plot.style_line)
+plot(display_output and display_PC3     ? pc3Indicator  : na, title="PC3 Indicator"     , color=colorPC3    , linewidth = 2, histbase=50, style=plot.style_line)
+plot(display_output and display_PC2     ? pc2Indicator  : na, title="PC2 Indicator"     , color=colorPC2    , linewidth = 2, histbase=50, style=plot.style_line)
+plot(display_output and display_PC1     ? pc1Indicator  : na, title="PC1 Indicator"     , color=colorPC1    , linewidth = 2, histbase=50, style=plot.style_line)
+plot(display_output and display_AvgRisk ? avgIndicator  : na, title="Average Indicator" , color=colorAvgRisk, linewidth = 2, histbase=50, style=plot.style_line)
+plot(display_output and display_Risk    ? riskRatio     : na, title="Risk Ratio"        , color=colorRisk   , linewidth = 2, histbase=50, style=plot.style_line)
+barcolor(color = barcolor_Risk ? colorRisk : na)
+
+
+// Alert
+lowRiskAlert        = input.int(10, minval=0, maxval=100, title="Low risk level for the alert"  , group="Alerts")
+highRiskAlert       = input.int(90, minval=0, maxval=100, title="High risk level for the alert" , group="Alerts")
+if (riskRatio < lowRiskAlert and riskRatio < riskRatio[2]) or (riskRatio > highRiskAlert and riskRatio > riskRatio[2])
+    alert("{\n\"tickerId\" : \"" + syminfo.tickerid + "\",\n\"timestamp\" : " + str.tostring(timenow) + ",\n\"risk-ratio\": " + str.tostring(riskRatio) + "\n}", alert.freq_once_per_bar_close)
+
+
