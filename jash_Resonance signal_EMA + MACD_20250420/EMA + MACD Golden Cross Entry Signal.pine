@@ -50,8 +50,8 @@ if (MACD_DeathCross)
     MACD_DeathCross_bar_index := bar_index	
 
 // 判斷是否同時在3根K棒內發生金/死叉
-Buy_start = not na(EMA_GoldenCross_bar_index) and not na(MACD_GoldenCross_bar_index) and math.abs(EMA_GoldenCross_bar_index - MACD_GoldenCross_bar_index) <= 3
-Sell_start = not na(EMA_DeathCross_bar_index) and not na(MACD_DeathCross_bar_index) and math.abs(EMA_DeathCross_bar_index - MACD_DeathCross_bar_index) <= 3
+Buy_start = not na(EMA_GoldenCross_bar_index) and not na(MACD_GoldenCross_bar_index) and math.abs(EMA_GoldenCross_bar_index - MACD_GoldenCross_bar_index) <= 2
+Sell_start = not na(EMA_DeathCross_bar_index) and not na(MACD_DeathCross_bar_index) and math.abs(EMA_DeathCross_bar_index - MACD_DeathCross_bar_index) <= 2
 
 if(Buy_start)
     EMA_GoldenCross_bar_index := na
