@@ -1,0 +1,70 @@
+//@version=5
+indicator("MACD + ATR13", overlay=false)
+
+// Inputs
+source = close
+smd = input(true, title="Show MacD & Signal Line? Also Turn Off Dots Below")
+sd = input(true, title="Show Dots When MacD Crosses Signal Line?")
+sh = input(true, title="Show Histogram?")
+satr = input(true, title="Show ATR13?")
+
+//Parameters [https://www.youtube.com/shorts/j67cSPJbfDM] 12->6 26->10 9->16
+//Parameters [https://www.youtube.com/watch?v=fUb5MZ2OVYg] 10,23,8
+//Parameters [https://www.youtube.com/watch?v=PMa_vcYAIq8] 3,15,6
+//MACD模型,运用条件
+//1.多空分界看零轴、上方强,下方弱,水下少操作,能不操做就不做
+//2.水下金叉多上涨,一山更比一山高,金叉是买点,距离零轴越近越好
+//3.水下金叉多反弹,一浪更比一浪低
+//4.抄底看水下底背离,股价创新低,但是macd没有创新低,背离进场。
+//5.逃頂看水上頂背离,股价创新高,但是macd没有创新高,背离出场。
+fastLength = input.int(3, minval=1, title="Fast Length")
+slowLength = input.int(15, minval=1, title="Slow Length")
+signalLength = input.int(6, minval=1, title="Signal Length")
+
+// ATR 計算
+atrLength = input.int(13, minval=1)
+atrValue = ta.sma(ta.tr, atrLength)
+
+// MACD calculation
+fastMA = ta.ema(source, fastLength)
+slowMA = ta.ema(source, slowLength)
+
+macd = fastMA - slowMA
+signal = ta.sma(macd, signalLength)
+hist = macd - signal
+
+// Histogram color logic
+histA_IsUp = hist > hist[1] and hist > 0
+histA_IsDown = hist < hist[1] and hist > 0
+histB_IsDown = hist < hist[1] and hist <= 0
+histB_IsUp = hist > hist[1] and hist <= 0
+
+hist_color = hist > 0 ? histA_IsUp ? color.red : color.maroon : histB_IsDown ? color.green : color.lime
+
+// MACD fast line color logic
+macd_color = macd > macd[1] ? color.red : color.green
+
+// Signal line color
+signal_color = color.yellow
+
+// Cross point color
+gol_cross_color = color.orange
+dea_cross_color = color.gray
+
+// Zero line color
+zero_line_color = color.blue
+
+circleYPosition = signal
+
+// Plotting
+plot(smd and macd ? macd : na, title="MACD", color=macd_color, linewidth=4)
+plot(smd and signal ? signal : na, title="Signal Line", color=signal_color, style=plot.style_line, linewidth=2)
+plot(sh and hist ? hist : na, title="Histogram", color=hist_color, style=plot.style_histogram, linewidth=4)
+plot(sd and ta.crossover(macd, signal) ? circleYPosition : na, title="Cross", style=plot.style_circles, linewidth=10, color=gol_cross_color)
+plot(sd and ta.crossunder(macd, signal) ? circleYPosition : na, title="Cross", style=plot.style_circles, linewidth=10, color=dea_cross_color)
+
+// Zero line
+hline(0, "0 Line", linestyle=hline.style_solid, linewidth=2, color=zero_line_color)
+
+// 繪製 ATR
+plot(satr?atrValue:na, color=color.black, offset=3, title="ATR13", linewidth=3)

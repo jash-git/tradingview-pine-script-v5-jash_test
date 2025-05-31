@@ -1,0 +1,69 @@
+//@version=5
+//tradingview V5程式 開發 規則如下
+//EMA3和13 金/死叉 和 MACD 金/死叉 兩者不超過三根K棒的的間隔 就顯示進場訊號
+//EMA3和34 金/死叉 顯示平倉訊號
+indicator("EMA + MACD Golden Cross Entry Signal", overlay=true)
+
+// 計算EMA
+ema3 = ta.ema(close, 3)
+ema13 = ta.ema(close, 13)
+ema34 = ta.ema(close, 34)
+ema55 = ta.ema(close, 55)
+ema144 = ta.ema(close, 144)
+
+//---
+//繪製EMA線
+plot(ema3, color=color.red, linewidth=2,title="ema3")
+plot(ema13, color=color.orange, linewidth=2,title="ema13")
+plot(ema34, color=color.blue, linewidth=2,title="ema34")
+plot(ema55, color=color.purple, linewidth=2,title="ema55")
+plot(ema144, color=color.black, linewidth=2,title="ema144")
+//---繪製EMA線
+
+
+// 計算MACD
+[macdLine, signalLine, _] = ta.macd(close, 3, 15, 6)
+
+// EMA 金/死叉定義
+EMA_GoldenCross = ta.crossover(ema3, ema13) and (close>=ema3) and (ema13>ema34) and (ema34>ema55) and (ema55>ema144)
+EMA_GClosePosition = ta.crossunder(ema3[0], ema13[0]) and (low<=ema34) and (ema3>=ema144) and (ema34>=ema144)
+EMA_DeathCross = ta.crossunder(ema3, ema13) and (close<=ema3) and (ema13<ema34) and (ema34<ema55) and (ema55<ema144)
+EMA_DClosePosition = ta.crossover(ema3[0], ema13[0]) and (hight>=ema34) and (ema3<=ema144) and (ema34<=ema144)
+
+// MACD 金/死叉定義
+MACD_GoldenCross = ta.crossover(macdLine, signalLine)
+MACD_DeathCross = ta.crossunder(macdLine, signalLine)
+
+// 記錄最近3根K棒內是否發生過金/死叉
+var int EMA_GoldenCross_bar_index = na
+var int MACD_GoldenCross_bar_index = na
+var int EMA_DeathCross_bar_index = na
+var int MACD_DeathCross_bar_index = na
+
+if (EMA_GoldenCross)
+    EMA_GoldenCross_bar_index := bar_index
+if (MACD_GoldenCross)
+    MACD_GoldenCross_bar_index := bar_index
+if (EMA_DeathCross)
+    EMA_DeathCross_bar_index := bar_index
+if (MACD_DeathCross)
+    MACD_DeathCross_bar_index := bar_index	
+
+// 判斷是否同時在3根K棒內發生金/死叉
+Buy_start = not na(EMA_GoldenCross_bar_index) and not na(MACD_GoldenCross_bar_index) and math.abs(EMA_GoldenCross_bar_index - MACD_GoldenCross_bar_index) <= 2
+Sell_start = not na(EMA_DeathCross_bar_index) and not na(MACD_DeathCross_bar_index) and math.abs(EMA_DeathCross_bar_index - MACD_DeathCross_bar_index) <= 2
+
+if(Buy_start)
+    EMA_GoldenCross_bar_index := na
+    MACD_GoldenCross_bar_index := na
+	
+if(Sell_start)
+    EMA_DeathCross_bar_index := na
+    MACD_DeathCross_bar_index := na	
+    
+// 畫出進場訊號
+plotshape(Buy_start, location=location.belowbar, color=color.red, style=shape.triangleup, text="開倉_買",textcolor=color.red,title="開倉_買")
+plotshape(Sell_start, location=location.abovebar, color=color.green, style=shape.triangledown, text="開倉_賣",textcolor=color.green,title="開倉_賣")
+
+plotshape(EMA_GClosePosition, location=location.belowbar, color=color.black, style=shape.triangleup, text="平倉_賣",textcolor=color.black,title="平倉_賣")
+plotshape(EMA_DClosePosition, location=location.abovebar, color=color.black, style=shape.triangledown, text="平倉_買",textcolor=color.black,title="平倉_買")
