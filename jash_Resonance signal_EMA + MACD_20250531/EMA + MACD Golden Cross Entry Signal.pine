@@ -28,7 +28,7 @@ plot(ema144, color=color.black, linewidth=2,title="ema144")
 EMA_GoldenCross = ta.crossover(ema3, ema13) and (close>=ema3) and (ema13>ema34) and (ema34>ema55) and (ema55>ema144)
 EMA_GClosePosition = ta.crossunder(ema3[0], ema13[0]) and (low<=ema34) and (ema3>=ema144) and (ema34>=ema144)
 EMA_DeathCross = ta.crossunder(ema3, ema13) and (close<=ema3) and (ema13<ema34) and (ema34<ema55) and (ema55<ema144)
-EMA_DClosePosition = ta.crossover(ema3[0], ema13[0]) and (hight>=ema34) and (ema3<=ema144) and (ema34<=ema144)
+EMA_DClosePosition = ta.crossover(ema3[0], ema13[0]) and (high>=ema34) and (ema3<=ema144) and (ema34<=ema144)
 
 // MACD 金/死叉定義
 MACD_GoldenCross = ta.crossover(macdLine, signalLine)
