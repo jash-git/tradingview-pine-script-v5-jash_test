@@ -30,9 +30,9 @@ EMA_GClosePosition = ta.crossunder(ema3[0], ema34[0]) and (low<=ema34) and (ema3
 EMA_DeathCross = ta.crossunder(ema3, ema13) and (close<=ema3) and (ema13<ema34) and (ema34<ema55) and (ema55<ema144)
 EMA_DClosePosition = ta.crossover(ema3[0], ema34[0]) and (high>=ema34)  and (ema3<=ema144) and (ema34<=ema144)
 
-// MACD 金/死叉定義
-MACD_GoldenCross = ta.crossover(macdLine, signalLine) and (macdLine>0)
-MACD_DeathCross = ta.crossunder(macdLine, signalLine) and (macdLine<0)
+// MACD 金[零軸之上]/死[零軸之下]叉定義
+MACD_GoldenCross = ta.crossover(macdLine, signalLine) and (macdLine>0) and (signalLine>0)
+MACD_DeathCross = ta.crossunder(macdLine, signalLine) and (macdLine<0) and (signalLine<0)
 
 // 記錄最近3根K棒內是否發生過金/死叉
 var int EMA_GoldenCross_bar_index = na
