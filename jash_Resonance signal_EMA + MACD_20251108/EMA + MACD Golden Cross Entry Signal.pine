@@ -4,6 +4,8 @@
 //EMA3和34 金/死叉 顯示平倉訊號
 indicator("EMA + MACD Golden Cross Entry Signal", overlay=true)
 
+RunEMA144 = input.bool(true, "讓判斷機制參考EMA144", tooltip="勾選讓判斷機制參考EMA144")
+
 // 計算EMA
 ema3 = ta.ema(close, 3)
 ema13 = ta.ema(close, 13)
@@ -25,9 +27,9 @@ plot(ema144, color=color.black, linewidth=2,title="ema144")
 [macdLine, signalLine, _] = ta.macd(close, 3, 15, 6)
 
 // EMA 金/死叉定義
-EMA_GoldenCross = ta.crossover(ema3, ema13) and (close>=ema3) and (ema13>ema34) and (ema34>ema55) and (ema55>ema144)
+EMA_GoldenCross = ta.crossover(ema3, ema13) and (close>=ema3) and (ema13>ema34) and (ema34>ema55) and ((ema55>ema144) or (not RunEMA144))
 EMA_GClosePosition = ta.crossunder(ema3[0], ema34[0]) and (low<=ema34) and (ema3>=ema144) and (ema34>=ema144)
-EMA_DeathCross = ta.crossunder(ema3, ema13) and (close<=ema3) and (ema13<ema34) and (ema34<ema55) and (ema55<ema144)
+EMA_DeathCross = ta.crossunder(ema3, ema13) and (close<=ema3) and (ema13<ema34) and (ema34<ema55) and ((ema55<ema144) or (not RunEMA144))
 EMA_DClosePosition = ta.crossover(ema3[0], ema34[0]) and (high>=ema34)  and (ema3<=ema144) and (ema34<=ema144)
 
 // MACD 金[零軸之上]/死[零軸之下]叉定義
