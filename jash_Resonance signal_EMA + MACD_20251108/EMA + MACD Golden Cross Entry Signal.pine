@@ -22,7 +22,30 @@ plot(ema55, color=color.purple, linewidth=2,title="ema55")
 plot(ema144, color=color.black, linewidth=2,title="ema144")
 //---繪製EMA線
 
+// ATR 計算+停損點計算
+atrLength = input.int(13, minval=1)
+atrValue = ta.sma(ta.tr, atrLength)
 
+StopLossPoint=""
+if atrValue[0] > (high[0] - low[0])
+    StopLossPoint := "停損點數: " + str.tostring(atrValue[0]*1.5,"0.00000")
+else if atrValue[0]*2 >= (high[0] - low[0])
+    StopLossPoint := "停損點數: " + str.tostring(atrValue[0]*2,"0.00000")
+else if atrValue[0]*3 >= (high[0] - low[0])
+    StopLossPoint := "停損點數: " + str.tostring(atrValue[0]*3,"0.00000")
+else
+	StopLossPoint := "停損大於3倍ATR"
+	
+// 當前與前一根 K 棒振幅
+range_curr = high - low
+range_prev = high[1] - low[1]
+
+// 計算差值的絕對值
+if ((range_curr > range_prev) and ((range_curr / range_prev) > 3))
+	StopLossPoint := "前後K棒大小超過3倍"
+if ((range_curr <= range_prev) and ((range_prev / range_curr ) > 3))
+	StopLossPoint := "前後K棒大小超過3倍"	
+	
 // 計算MACD
 [macdLine, signalLine, _] = ta.macd(close, 3, 15, 6)
 
@@ -65,8 +88,13 @@ if(Sell_start)
     MACD_DeathCross_bar_index := na	
     
 // 畫出進場訊號
+Sell_text="開倉_賣"+StopLossPoint
 plotshape(Buy_start, location=location.belowbar, color=color.red, style=shape.triangleup, text="開倉_買",textcolor=color.red,title="開倉_買")
+if Buy_start
+    label.new(bar_index, (low - atrValue), text=StopLossPoint, style=label.style_label_up, color=color.red)
 plotshape(Sell_start, location=location.abovebar, color=color.green, style=shape.triangledown, text="開倉_賣",textcolor=color.green,title="開倉_賣")
+if Sell_start
+    label.new(bar_index, (high + atrValue), text=StopLossPoint, style=label.style_label_down, color=color.green)
 
 plotshape(EMA_GClosePosition, location=location.belowbar, color=color.black, style=shape.triangleup, text="平倉_賣",textcolor=color.black,title="平倉_賣")
 plotshape(EMA_DClosePosition, location=location.abovebar, color=color.black, style=shape.triangledown, text="平倉_買",textcolor=color.black,title="平倉_買")
